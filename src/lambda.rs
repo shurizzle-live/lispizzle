@@ -1,5 +1,6 @@
 use std::{fmt, num::NonZeroUsize, rc::Rc};
 
+use ecow::EcoString;
 use im_rc::Vector;
 
 use crate::Value;
@@ -16,6 +17,7 @@ pub enum Parameters<T1, T2> {
 
 struct NativeFnRepr<T: (Fn(Vector<Value>) -> Value) + ?Sized + 'static> {
     parameters: Parameters<usize, NonZeroUsize>,
+    doc: Option<EcoString>,
     fun: T,
 }
 
@@ -23,9 +25,14 @@ impl<F: (Fn(Vector<Value>) -> Value) + 'static> NativeFnRepr<F> {
     #[inline]
     pub fn new(
         parameters: Parameters<usize, NonZeroUsize>,
+        doc: Option<EcoString>,
         fun: F,
     ) -> Rc<NativeFnRepr<dyn Fn(Vector<Value>) -> Value>> {
-        Rc::new(NativeFnRepr { parameters, fun })
+        Rc::new(NativeFnRepr {
+            parameters,
+            doc,
+            fun,
+        })
     }
 }
 
@@ -77,9 +84,10 @@ impl NativeFn {
     #[inline]
     fn new<F: (Fn(Vector<Value>) -> Value) + 'static>(
         parameters: Parameters<usize, NonZeroUsize>,
+        doc: Option<EcoString>,
         fun: F,
     ) -> Self {
-        Self(NativeFnRepr::new(parameters, fun))
+        Self(NativeFnRepr::new(parameters, doc, fun))
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -90,6 +98,11 @@ impl NativeFn {
                 fmt_parameters(f, true, n.get(), ["_"].into_iter().cycle().take(n.get()))
             }
         }
+    }
+
+    #[inline]
+    pub fn doc(&self) -> Option<EcoString> {
+        self.0.doc.clone()
     }
 }
 
@@ -125,9 +138,17 @@ impl LambdaRepr {
     #[inline]
     fn from_native<F: (Fn(Vector<Value>) -> Value) + 'static>(
         parameters: Parameters<usize, NonZeroUsize>,
+        doc: Option<EcoString>,
         fun: F,
     ) -> Self {
-        Self::Native(NativeFn::new(parameters, fun))
+        Self::Native(NativeFn::new(parameters, doc, fun))
+    }
+
+    #[inline]
+    pub fn doc(&self) -> Option<EcoString> {
+        match self {
+            Self::Native(ref f) => f.doc(),
+        }
     }
 }
 
@@ -160,11 +181,12 @@ impl Lambda {
     #[inline]
     pub fn from_native<F: (Fn(Vector<Value>) -> Value) + 'static>(
         parameters: Parameters<usize, NonZeroUsize>,
+        doc: Option<EcoString>,
         fun: F,
     ) -> Self {
         Self {
             name: None,
-            repr: (LambdaRepr::from_native(parameters, fun)),
+            repr: (LambdaRepr::from_native(parameters, doc, fun)),
         }
     }
 
@@ -181,6 +203,11 @@ impl Lambda {
     #[inline]
     pub fn unset_name(&mut self) {
         self.name = None;
+    }
+
+    #[inline]
+    pub fn doc(&self) -> Option<EcoString> {
+        self.repr.doc()
     }
 
     fn _addr(&self) -> usize {
@@ -254,7 +281,11 @@ mod tests {
 
     #[test]
     fn run() {
-        let lambda = Lambda::from_native(Parameters::Variadic(NonZeroUsize::new(1).unwrap()), add);
+        let lambda = Lambda::from_native(
+            Parameters::Variadic(NonZeroUsize::new(1).unwrap()),
+            None,
+            add,
+        );
         assert!(lambda == lambda);
         assert_eq!(lambda.call(vector![]), 0.into());
         assert_eq!(lambda.call(vector![1.into()]), 1.into());
@@ -265,8 +296,11 @@ mod tests {
     #[test]
     fn fmt() {
         {
-            let mut lambda =
-                Lambda::from_native(Parameters::Variadic(NonZeroUsize::new(1).unwrap()), add);
+            let mut lambda = Lambda::from_native(
+                Parameters::Variadic(NonZeroUsize::new(1).unwrap()),
+                None,
+                add,
+            );
             assert_eq!(
                 format!("{:?}", lambda),
                 format!("#<procedure {:x} (. _)>", lambda.addr())
@@ -275,8 +309,11 @@ mod tests {
             assert_eq!(format!("{:?}", lambda), "#<procedure test (. _)>");
         }
         {
-            let mut lambda =
-                Lambda::from_native(Parameters::Variadic(NonZeroUsize::new(2).unwrap()), add);
+            let mut lambda = Lambda::from_native(
+                Parameters::Variadic(NonZeroUsize::new(2).unwrap()),
+                None,
+                add,
+            );
             assert_eq!(
                 format!("{:?}", lambda),
                 format!("#<procedure {:x} (_ . _)>", lambda.addr())
@@ -285,7 +322,7 @@ mod tests {
             assert_eq!(format!("{:?}", lambda), "#<procedure test (_ . _)>");
         }
         {
-            let mut lambda = Lambda::from_native(Parameters::Exact(2), add);
+            let mut lambda = Lambda::from_native(Parameters::Exact(2), None, add);
             assert_eq!(
                 format!("{:?}", lambda),
                 format!("#<procedure {:x} (_ _)>", lambda.addr())
