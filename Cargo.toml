@@ -1,0 +1,14 @@
+[package]
+name = "lispizzle"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+im-rc = "15.1.0"
+ecow = { git = "https://github.com/typst/ecow.git" }
+rug = { version = "1.19.1", default-features = false, features = [
+  "integer",
+  "rand",
+] }
+unicode-width = { version = "0.1.10", features = ["std"] }
+memchr = "2.5.0"
