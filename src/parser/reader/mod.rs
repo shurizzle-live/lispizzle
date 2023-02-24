@@ -147,6 +147,7 @@ fn string(i: Input<'_>) -> Result<Value> {
                     'n' => '\n',
                     'a' => '\u{7}',
                     '\\' => '\\',
+                    '0' => '\0',
                     '"' => '"',
                     _ => return Err(i.err("unexpected escaped symbol")),
                 };
