@@ -136,6 +136,7 @@ fn string(i: Input<'_>) -> Result<Value> {
 
     loop {
         if let Some(c) = i.get(0) {
+            let prev_input = i.clone();
             i = unsafe { i.get_unchecked(1..) };
 
             if escaping {
@@ -149,7 +150,7 @@ fn string(i: Input<'_>) -> Result<Value> {
                     '\\' => '\\',
                     '0' => '\0',
                     '"' => '"',
-                    _ => return Err(i.err("unexpected escaped symbol")),
+                    _ => return Err(prev_input.err("unexpected escaped symbol")),
                 };
                 res.push(c);
             } else {
