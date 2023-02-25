@@ -29,6 +29,8 @@ use super::Error;
 
 type Result<'a, T> = std::result::Result<(Input<'a>, T), Error>;
 
+const INVALID_SYM_CHARS: &str = ",'@`()\"|#";
+
 fn skip_ws(i: Input<'_>) -> std::result::Result<Input<'_>, Error> {
     if i.needs_ws() {
         if let Some(c) = i.get(0) {
@@ -44,64 +46,60 @@ fn skip_ws(i: Input<'_>) -> std::result::Result<Input<'_>, Error> {
         .take_while(|&c| c.is_whitespace())
         .count();
 
-    Ok(i.get(skipped..).unwrap().unset_needs_ws())
+    Ok(unsafe { i.get_unchecked(skipped..).unset_needs_ws() })
 }
 
-const INVALID_SYM_CHARS: &str = ",'@`()\"|#";
+fn split_at(i: Input<'_>, index: usize) -> Option<(Input<'_>, Input<'_>)> {
+    i.get(..index)
+        .map(|i1| (i1, unsafe { i.get_unchecked(index..) }))
+}
+
+fn next_char(i: Input<'_>) -> Option<(char, Input<'_>)> {
+    i.get(0).map(|c| (c, unsafe { i.get_unchecked(1..) }))
+}
 
 #[inline(always)]
 fn is_valid_sym_char(c: char) -> bool {
     !(INVALID_SYM_CHARS.contains(c) || c.is_whitespace())
 }
 
-fn symbol_or_integer(i: Input<'_>) -> Result<Value> {
-    let (len, is_integer) = {
-        let mut is_integer = false;
-        let mut sign = false;
-        let mut len = 0;
+fn starts_with_ci(haystack: &str, need: &str) -> bool {
+    let mut haystack = haystack.chars();
+    let mut need = need.chars();
 
-        for (i, c) in i
-            .as_str()
-            .chars()
-            .take_while(|&c| is_valid_sym_char(c))
-            .enumerate()
-        {
-            if is_integer || sign || i == 0 {
-                is_integer = c.is_ascii_digit();
+    loop {
+        match (haystack.next(), need.next()) {
+            (Some(a), Some(b)) => {
+                if !char_equals_ci(a, b) {
+                    return false;
+                }
             }
-
-            if i == 0 && (c == '-' || c == '+') {
-                sign = true;
-            }
-
-            len = i + 1;
+            (Some(_), None) | (None, None) => return true,
+            (None, Some(_)) => return false,
         }
-
-        (len, is_integer)
-    };
-
-    if len == 0 {
-        return Err(i.err("unexpected character"));
     }
+}
 
-    let parsed = unsafe { i.get_unchecked(..len) };
-    let i = unsafe { i.get_unchecked(len..) }.set_needs_ws();
-
-    if is_integer {
-        let e = i.clone();
-        i.ok(Integer::parse(parsed.as_str())
-            .map_err(|_| e.err("invalid number"))?
-            .complete()
-            .into())
+fn istarts_with<'a>(i: Input<'a>, need: &str) -> Option<Input<'a>> {
+    if i.as_str().starts_with(need) {
+        Some(unsafe { i.get_unchecked(need.len()..) })
     } else {
-        i.ok(Value::Symbol(parsed.as_str().into()))
+        None
+    }
+}
+
+fn istarts_with_ci<'a>(i: Input<'a>, need: &str) -> Option<Input<'a>> {
+    if starts_with_ci(i.as_str(), need) {
+        Some(unsafe { i.get_unchecked(need.len()..) })
+    } else {
+        None
     }
 }
 
 fn needs_char(i: Input<'_>, need: char) -> std::result::Result<Input<'_>, Error> {
-    if let Some(c) = i.get(0) {
+    if let Some((c, rest)) = next_char(i.clone()) {
         if c == need {
-            Ok(unsafe { i.get_unchecked(1..) })
+            Ok(rest)
         } else {
             Err(i.err("unexpected character"))
         }
@@ -141,14 +139,56 @@ fn eqci() {
 }
 
 fn needs_char_ci(i: Input<'_>, need: char) -> std::result::Result<Input<'_>, Error> {
-    if let Some(c) = i.get(0) {
+    if let Some((c, rest)) = next_char(i.clone()) {
         if char_equals_ci(c, need) {
-            Ok(unsafe { i.get_unchecked(1..) })
+            Ok(rest)
         } else {
             Err(i.err("unexpected character"))
         }
     } else {
         Err(i.err("unexpected EOF"))
+    }
+}
+
+fn symbol_or_integer(i: Input<'_>) -> Result<Value> {
+    let (len, is_integer) = {
+        let mut is_integer = false;
+        let mut sign = false;
+        let mut len = 0;
+
+        for (i, c) in i
+            .as_str()
+            .chars()
+            .take_while(|&c| is_valid_sym_char(c))
+            .enumerate()
+        {
+            if is_integer || sign || i == 0 {
+                is_integer = c.is_ascii_digit();
+            }
+
+            if i == 0 && (c == '-' || c == '+') {
+                sign = true;
+            }
+
+            len = i + 1;
+        }
+
+        (len, is_integer)
+    };
+
+    if len == 0 {
+        return Err(i.err("unexpected character"));
+    }
+
+    let (parsed, i) = unsafe { split_at(i, len).unwrap_unchecked() };
+
+    if is_integer {
+        i.ok(Integer::parse(parsed.as_str())
+            .map_err(|_| parsed.err("invalid number"))?
+            .complete()
+            .into())
+    } else {
+        i.ok(Value::Symbol(parsed.as_str().into()))
     }
 }
 
@@ -158,9 +198,9 @@ fn string(i: Input<'_>) -> Result<Value> {
     let mut res = EcoString::new();
 
     loop {
-        if let Some(c) = i.get(0) {
-            let prev_input = i.clone();
-            i = unsafe { i.get_unchecked(1..) };
+        let prev_input = i.clone();
+        if let Some((c, new_i)) = next_char(i.clone()) {
+            i = new_i;
 
             if escaping {
                 escaping = false;
@@ -198,19 +238,16 @@ fn string(i: Input<'_>) -> Result<Value> {
 fn nil_or_bool(i: Input<'_>) -> Result<Value> {
     let i = needs_char(i, '#')?;
 
-    if let Some(c) = i.get(0) {
-        let i = unsafe { i.get_unchecked(1..) };
-
-        match c {
-            't' | 'T' => i.set_needs_ws().ok(true.into()),
-            'f' | 'F' => i.set_needs_ws().ok(false.into()),
-            'n' => needs_char(needs_char(i, 'i')?, 'l')?
-                .set_needs_ws()
-                .ok(Value::Nil),
-            _ => Err(i.err("unexpected character")),
-        }
-    } else {
+    if let Some(i) = istarts_with(i.clone(), "nil") {
+        i.set_needs_ws().ok(Value::Nil)
+    } else if let Some(i) = istarts_with_ci(i.clone(), "t") {
+        i.set_needs_ws().ok(true.into())
+    } else if let Some(i) = istarts_with_ci(i.clone(), "f") {
+        i.set_needs_ws().ok(false.into())
+    } else if i.is_empty() {
         Err(i.err("unexpected EOF"))
+    } else {
+        Err(i.err("unexpected character"))
     }
 }
 
@@ -227,26 +264,24 @@ fn literal(i: Input<'_>) -> Result<Value> {
 }
 
 fn list(mut i: Input<'_>) -> Result<Value> {
-    i = if let Some(c) = i.get(0) {
-        if c == '(' {
-            i.get(1..).unwrap().unset_needs_ws()
-        } else {
-            return Err(i.err("expected `('"));
-        }
-    } else {
+    i = if let Some(i) = istarts_with(i.clone(), "(") {
+        i.unset_needs_ws()
+    } else if i.is_empty() {
         return Err(i.err("unexpected EOF"));
+    } else {
+        return Err(i.err("expected `('"));
     };
 
     let mut values = Vector::new();
 
     loop {
         i = skip_ws(i)?;
-        if let Some(c) = i.get(0) {
+        if let Some((c, new_i)) = next_char(i.clone()) {
             if c == ')' {
-                return Ok((i.get(1..).unwrap().unset_needs_ws(), Value::List(values)));
+                return Ok((new_i, Value::List(values)));
             } else {
                 let v;
-                (i, v) = expression(i)?;
+                (i, v) = expression(new_i)?;
                 values.push_back(v);
             }
         } else {
