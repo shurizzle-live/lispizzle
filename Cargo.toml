@@ -3,6 +3,17 @@ name = "lispizzle"
 version = "0.1.0"
 edition = "2021"
 
+[[bench]]
+name = "skip_characters"
+harness = false
+required-features = ["benchmarking"]
+
+[features]
+benchmarking = []
+
+[dev-dependencies]
+criterion = "0.4.0"
+
 [dependencies]
 im-rc = "15.1.0"
 ecow = { git = "https://github.com/typst/ecow.git" }

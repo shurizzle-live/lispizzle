@@ -1,5 +1,8 @@
 mod input;
 mod str_reader;
+#[cfg(feature = "benchmarking")]
+pub mod util;
+#[cfg(not(feature = "benchmarking"))]
 mod util;
 
 use ecow::EcoString;
