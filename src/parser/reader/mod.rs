@@ -34,22 +34,25 @@ type Result<'a, T> = std::result::Result<(Input<'a>, T), Error>;
 
 const INVALID_SYM_CHARS: &str = ",'@`()\"|#";
 
-fn skip_ws(i: Input<'_>) -> std::result::Result<Input<'_>, Error> {
+fn skip_ws(mut i: Input<'_>) -> std::result::Result<Input<'_>, Error> {
+    let old_len = i.len();
+    i = i.ltrim();
+
+    if i.len() < old_len {
+        i = i.unset_needs_ws();
+    }
+
     if i.needs_ws() {
-        if let Some(c) = i.get(0) {
-            if !(c.is_whitespace() || c == '(' || c == ')') {
-                return Err(i.err("expected space or list"));
+        if let Some(c) = i.peek() {
+            if c == '(' || c == ')' {
+                i = i.unset_needs_ws();
+            } else {
+                return Err(i.err("expected space character or list"));
             }
         }
     }
 
-    let skipped = i
-        .as_str()
-        .chars()
-        .take_while(|&c| c.is_whitespace())
-        .count();
-
-    Ok(unsafe { i.get_unchecked(skipped..).unset_needs_ws() })
+    Ok(i.unset_needs_ws())
 }
 
 fn split_at(i: Input<'_>, index: usize) -> Option<(Input<'_>, Input<'_>)> {
@@ -58,7 +61,7 @@ fn split_at(i: Input<'_>, index: usize) -> Option<(Input<'_>, Input<'_>)> {
 }
 
 fn next_char(i: Input<'_>) -> Option<(char, Input<'_>)> {
-    i.get(0).map(|c| (c, unsafe { i.get_unchecked(1..) }))
+    i.peek().map(|c| (c, unsafe { i.get_unchecked(1..) }))
 }
 
 #[inline(always)]
@@ -255,7 +258,7 @@ fn nil_or_bool(i: Input<'_>) -> Result<Value> {
 }
 
 fn literal(i: Input<'_>) -> Result<Value> {
-    if let Some(c) = i.get(0) {
+    if let Some(c) = i.peek() {
         match c {
             '"' => return string(i),
             '#' => return nil_or_bool(i),
@@ -281,10 +284,10 @@ fn list(mut i: Input<'_>) -> Result<Value> {
         i = skip_ws(i)?;
         if let Some((c, new_i)) = next_char(i.clone()) {
             if c == ')' {
-                return Ok((new_i, Value::List(values)));
+                return Ok((new_i.unset_needs_ws(), Value::List(values)));
             } else {
                 let v;
-                (i, v) = expression(new_i)?;
+                (i, v) = expression(i)?;
                 values.push_back(v);
             }
         } else {
@@ -293,10 +296,8 @@ fn list(mut i: Input<'_>) -> Result<Value> {
     }
 }
 
-fn expression(mut i: Input<'_>) -> Result<Value> {
-    i = skip_ws(i)?;
-
-    if let Some(c) = i.get(0) {
+fn expression(i: Input<'_>) -> Result<Value> {
+    if let Some(c) = i.peek() {
         if c == '(' {
             list(i)
         } else {
@@ -331,6 +332,8 @@ pub fn parse(mut i: Input<'_>) -> std::result::Result<Vec<Value>, Error> {
 
 #[cfg(test)]
 mod tests {
+    use im_rc::vector;
+
     use super::*;
 
     macro_rules! assert_fp_eq {
@@ -376,5 +379,13 @@ mod tests {
             symbol_or_integer(Input::new(None, "-0000000test")),
             Value::Symbol("-0000000test".into())
         );
+    }
+
+    #[test]
+    fn parse_list() {
+        let expected: Value = vector![1.into(), vector![2.into(), 3.into()].into()].into();
+
+        assert_fp_eq!(list(Input::new(None, "(1(2 3))")), expected.clone());
+        assert_fp_eq!(list(Input::new(None, "(1    (2    3)  )")), expected);
     }
 }

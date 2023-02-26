@@ -23,6 +23,7 @@ impl<'a> Input<'a> {
             need_ws: false,
         }
     }
+
     #[inline]
     pub fn needs_ws(&self) -> bool {
         self.need_ws
@@ -38,6 +39,11 @@ impl<'a> Input<'a> {
     pub fn unset_needs_ws(mut self) -> Self {
         self.need_ws = false;
         self
+    }
+
+    #[inline(always)]
+    pub fn peek(&self) -> Option<char> {
+        self.get(0)
     }
 
     #[inline]
