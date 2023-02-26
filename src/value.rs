@@ -6,7 +6,7 @@ use rug::Integer;
 
 use crate::{
     util::{print_list_debug, print_list_display},
-    Environment, Lambda, Symbol, Var,
+    Callable, Environment, Lambda, Symbol, Var,
 };
 
 #[derive(Clone)]
@@ -68,6 +68,14 @@ impl Value {
     #[inline]
     pub fn is_environment(&self) -> bool {
         matches!(self, Value::List(_))
+    }
+
+    #[inline]
+    pub fn apply(&self, args: Vector<Value>) -> Value {
+        match self {
+            Self::Lambda(l) => l.call(args),
+            _ => Self::Nil,
+        }
     }
 }
 

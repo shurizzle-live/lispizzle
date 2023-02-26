@@ -3,6 +3,7 @@ use std::{
     cell::{Ref, RefCell},
     fmt,
     hash::Hash,
+    ops::AddAssign,
     rc::Rc,
 };
 
@@ -110,9 +111,42 @@ impl Environment {
 }
 
 impl Default for Environment {
-    #[inline]
     fn default() -> Self {
-        Self::new()
+        use crate::{Lambda, Parameters};
+        use rug::Integer;
+        use std::num::NonZeroUsize;
+
+        let me = Self::new();
+
+        me.define(
+            Symbol::Name("+".into()),
+            Lambda::from_native(
+                Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+                Some("plus.".into()),
+                |values| match values.len() {
+                    0 => Integer::from(0).into(),
+                    1 => values[0].clone(),
+                    _ => {
+                        let mut acc = match &values[0] {
+                            Value::Integer(i) => i.clone(),
+                            _ => return Value::Nil,
+                        };
+
+                        for v in values.iter().skip(1) {
+                            match v {
+                                Value::Integer(i) => acc.add_assign(i.clone()),
+                                _ => return Value::Nil,
+                            }
+                        }
+
+                        acc.into()
+                    }
+                },
+            )
+            .into(),
+        );
+
+        me
     }
 }
 
@@ -140,5 +174,61 @@ impl fmt::Debug for Environment {
 impl fmt::Display for Environment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#<environment {:x}>", self.0.as_ptr() as usize)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use im_rc::vector;
+    use rug::Integer;
+
+    use crate::{Symbol, Value};
+
+    #[test]
+    fn plus() {
+        let env = super::Environment::default();
+
+        assert_eq!(
+            env.get(Symbol::Name("+".into()))
+                .unwrap()
+                .get()
+                .apply(vector![]),
+            Integer::from(0).into()
+        );
+
+        assert_eq!(
+            env.get(Symbol::Name("+".into()))
+                .unwrap()
+                .get()
+                .apply(vector![Integer::from(69).into()]),
+            Integer::from(69).into()
+        );
+
+        assert_eq!(
+            env.get(Symbol::Name("+".into()))
+                .unwrap()
+                .get()
+                .apply(vector![Value::String("ciao".into())]),
+            Value::String("ciao".into())
+        );
+
+        assert_eq!(
+            env.get(Symbol::Name("+".into()))
+                .unwrap()
+                .get()
+                .apply(vector![Integer::from(34).into(), Integer::from(35).into()]),
+            Integer::from(69).into()
+        );
+
+        assert_eq!(
+            env.get(Symbol::Name("+".into()))
+                .unwrap()
+                .get()
+                .apply(vector![
+                    Integer::from(69).into(),
+                    Value::String("ciao".into())
+                ]),
+            Value::Nil
+        );
     }
 }
