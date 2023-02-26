@@ -4,7 +4,10 @@ use ecow::EcoString;
 use im_rc::Vector;
 use rug::Integer;
 
-use crate::{util::print_list, Lambda};
+use crate::{
+    util::{print_list_debug, print_list_display},
+    Environment, Lambda, Symbol, Var,
+};
 
 #[derive(Clone)]
 pub enum Value {
@@ -14,9 +17,11 @@ pub enum Value {
     Character(char),
     Integer(Integer),
     String(EcoString),
-    Symbol(EcoString),
+    Symbol(Symbol),
     Lambda(Lambda),
     List(Vector<Value>),
+    Var(Var),
+    Environment(Environment),
 }
 
 impl Value {
@@ -36,7 +41,7 @@ impl Value {
     }
 
     #[inline]
-    pub fn is_char(&self) -> bool {
+    pub fn is_character(&self) -> bool {
         matches!(self, Value::Character(_))
     }
 
@@ -46,12 +51,22 @@ impl Value {
     }
 
     #[inline]
+    pub fn is_symbol(&self) -> bool {
+        matches!(self, Value::Symbol(_))
+    }
+
+    #[inline]
     pub fn is_lambda(&self) -> bool {
         matches!(self, Value::Lambda(_))
     }
 
     #[inline]
     pub fn is_list(&self) -> bool {
+        matches!(self, Value::List(_))
+    }
+
+    #[inline]
+    pub fn is_environment(&self) -> bool {
         matches!(self, Value::List(_))
     }
 }
@@ -68,6 +83,8 @@ impl PartialEq for Value {
             (Self::Symbol(l0), Self::Symbol(r0)) => l0 == r0,
             (Self::Lambda(l0), Self::Lambda(r0)) => l0 == r0,
             (Self::List(l0), Self::List(r0)) => l0 == r0,
+            (Self::Var(l0), Self::Var(r0)) => l0 == r0,
+            (Self::Environment(l0), Self::Environment(r0)) => l0 == r0,
             _ => false,
         }
     }
@@ -227,6 +244,13 @@ impl<const N: usize> From<&mut [Value; N]> for Value {
     }
 }
 
+impl From<Environment> for Value {
+    #[inline]
+    fn from(value: Environment) -> Self {
+        Self::Environment(value)
+    }
+}
+
 impl<T: Into<Value>> From<Option<T>> for Value {
     fn from(value: Option<T>) -> Self {
         if let Some(value) = value {
@@ -252,9 +276,35 @@ impl fmt::Debug for Value {
             Self::Character(c) => fmt::Debug::fmt(c, f),
             Self::Integer(i) => fmt::Debug::fmt(i, f),
             Self::String(s) => fmt::Debug::fmt(s, f),
+            Self::Symbol(s) => fmt::Debug::fmt(s, f),
+            Self::Lambda(l) => fmt::Debug::fmt(l, f),
+            Self::List(l) => print_list_debug(f, l.iter(), "(", ")"),
+            Self::Var(v) => fmt::Debug::fmt(v, f),
+            Self::Environment(e) => fmt::Debug::fmt(e, f),
+        }
+    }
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unspecified => write!(f, "#<unspecified>"),
+            Self::Nil => write!(f, "#nil"),
+            &Self::Boolean(b) => {
+                if b {
+                    write!(f, "#t")
+                } else {
+                    write!(f, "#f")
+                }
+            }
+            Self::Character(c) => fmt::Display::fmt(c, f),
+            Self::Integer(i) => fmt::Display::fmt(i, f),
+            Self::String(s) => fmt::Display::fmt(s, f),
             Self::Symbol(s) => fmt::Display::fmt(s, f),
             Self::Lambda(l) => fmt::Debug::fmt(l, f),
-            Self::List(l) => print_list(f, l.iter(), "(", ")"),
+            Self::List(l) => print_list_display(f, l.iter(), "(", ")"),
+            Self::Var(v) => fmt::Display::fmt(v, f),
+            Self::Environment(v) => fmt::Display::fmt(v, f),
         }
     }
 }
