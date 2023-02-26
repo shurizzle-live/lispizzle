@@ -7,17 +7,17 @@ mod util;
 
 use ecow::EcoString;
 use im_rc::Vector;
-pub use input::*;
 use phf::phf_map;
-pub use str_reader::*;
 
 use rug::{Complete, Integer};
 
 use crate::Value;
 
-use input::Input;
+pub use input::Input;
 
 use super::Error;
+
+use str_reader::*;
 
 // ✔️  Character  #\...
 //                 <octal>
@@ -84,7 +84,7 @@ const CHAR_NAME_TO_CODEPOINT: phf::Map<&'static str, char> = phf_map! {
     "del" => 0x7F as char,
 };
 
-fn skip_ws(mut i: Input<'_>) -> std::result::Result<Input<'_>, Error> {
+fn skip_ws(mut i: Input) -> std::result::Result<Input, Error> {
     let old_len = i.len();
     i = i.ltrim();
 
@@ -105,7 +105,7 @@ fn skip_ws(mut i: Input<'_>) -> std::result::Result<Input<'_>, Error> {
     Ok(i.unset_needs_ws())
 }
 
-fn split_at(i: Input<'_>, index: usize) -> Option<(Input<'_>, Input<'_>)> {
+fn split_at(i: Input, index: usize) -> Option<(Input, Input)> {
     i.get(..index)
         .map(|i1| (i1, unsafe { i.get_unchecked(index..) }))
 }

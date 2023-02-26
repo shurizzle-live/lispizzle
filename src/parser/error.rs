@@ -104,3 +104,5 @@ impl fmt::Display for Error {
         writeln!(f, "^")
     }
 }
+
+impl std::error::Error for Error {}
