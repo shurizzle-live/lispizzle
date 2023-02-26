@@ -77,6 +77,31 @@ impl Value {
             _ => Self::Nil,
         }
     }
+
+    pub fn eval(&self, env: Environment) -> Value {
+        match self {
+            Self::Unspecified
+            | Self::Nil
+            | Self::Boolean(_)
+            | Self::Character(_)
+            | Self::Integer(_)
+            | Self::String(_)
+            | Self::Lambda(_)
+            | Self::Var(_)
+            | Self::Environment(_) => self.clone(),
+            Self::Symbol(sym) => env.get(sym).map(|v| v.get()).unwrap_or(Self::Nil),
+            Self::List(l) => {
+                if let Some(first) = l.head() {
+                    first.eval(env.clone()).apply(
+                        env.clone(),
+                        l.iter().skip(1).map(|v| v.eval(env.clone())).collect(),
+                    )
+                } else {
+                    panic!("cannot eval empty list");
+                }
+            }
+        }
+    }
 }
 
 impl PartialEq for Value {

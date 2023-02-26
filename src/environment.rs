@@ -3,7 +3,7 @@ use std::{
     cell::{Ref, RefCell},
     fmt,
     hash::Hash,
-    ops::AddAssign,
+    ops::{AddAssign, Neg, SubAssign},
     rc::Rc,
 };
 
@@ -135,6 +135,37 @@ impl Default for Environment {
                         for v in values.iter().skip(1) {
                             match v {
                                 Value::Integer(i) => acc.add_assign(i.clone()),
+                                _ => return Value::Nil,
+                            }
+                        }
+
+                        acc.into()
+                    }
+                },
+            )
+            .into(),
+        );
+
+        me.define(
+            Symbol::Name("-".into()),
+            Lambda::from_native(
+                Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+                Some("minus.".into()),
+                |_env, values| match values.len() {
+                    0 => Value::Nil,
+                    1 => match &values[0] {
+                        Value::Integer(i) => i.clone().neg().into(),
+                        _ => Value::Nil,
+                    },
+                    _ => {
+                        let mut acc = match &values[0] {
+                            Value::Integer(i) => i.clone(),
+                            _ => return Value::Nil,
+                        };
+
+                        for v in values.iter().skip(1) {
+                            match v {
+                                Value::Integer(i) => acc.sub_assign(i.clone()),
                                 _ => return Value::Nil,
                             }
                         }
