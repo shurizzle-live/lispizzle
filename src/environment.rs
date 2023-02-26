@@ -6,7 +6,6 @@ use std::{
     rc::Rc,
 };
 
-use ecow::EcoString;
 use im_rc::HashMap;
 
 use crate::{Symbol, Value, Var};
@@ -14,7 +13,7 @@ use crate::{Symbol, Value, Var};
 struct EnvironmentRepr {
     parent: Option<Rc<RefCell<EnvironmentRepr>>>,
     gensym: usize,
-    store: HashMap<Symbol, Var>,
+    storage: HashMap<Symbol, Var>,
 }
 
 impl EnvironmentRepr {
@@ -25,7 +24,7 @@ impl EnvironmentRepr {
 
     pub fn get<B: Borrow<Symbol>>(&self, key: B) -> Option<Var> {
         let key = key.borrow();
-        self.store
+        self.storage
             .get(key)
             .cloned()
             .or_else(|| self.parent().and_then(|p| p.get(key)))
@@ -39,31 +38,40 @@ impl EnvironmentRepr {
             Err(value)
         }
     }
+
+    pub fn define<I: Into<Symbol>>(&self, key: I, value: Value) {
+        let key = key.into();
+        if let Some(var) = self.storage.get(&key).cloned() {
+            var.set(value);
+        } else {
+            self.storage.insert(key.into(), Var::new(value));
+        }
+    }
+
+    pub fn generate(&mut self) -> Symbol {
+        let i = self.gensym;
+        self.gensym += 1;
+        Symbol::Gensym(i)
+    }
 }
 
 #[derive(Clone)]
 pub struct Environment(Rc<RefCell<EnvironmentRepr>>);
 
 impl Environment {
-    pub fn new<I: IntoIterator<Item = EcoString>>(iiter: I) -> Self {
+    pub fn new() -> Self {
         Self(Rc::new(RefCell::new(EnvironmentRepr {
             parent: None,
             gensym: 0,
-            store: iiter
-                .into_iter()
-                .map(|k| (k.into(), Var::new(Value::Unspecified)))
-                .collect(),
+            storage: HashMap::new(),
         })))
     }
 
-    pub fn child<I: IntoIterator<Item = EcoString>>(&self, iiter: I) -> Self {
+    pub fn child(&self) -> Self {
         Self(Rc::new(RefCell::new(EnvironmentRepr {
             parent: Some(Rc::clone(&self.0)),
             gensym: RefCell::borrow(&*self.0).gensym,
-            store: iiter
-                .into_iter()
-                .map(|k| (k.into(), Var::new(Value::Unspecified)))
-                .collect(),
+            storage: HashMap::new(),
         })))
     }
 
@@ -76,12 +84,22 @@ impl Environment {
     pub fn set<B: Borrow<Symbol>>(&self, key: B, value: Value) -> Result<(), Value> {
         RefCell::borrow(&*self.0).set(key, value)
     }
+
+    #[inline]
+    pub fn define<I: Into<Symbol>>(&self, key: I, value: Value) {
+        RefCell::borrow(&*self.0).define(key, value)
+    }
+
+    #[inline]
+    pub fn generate(&self) -> Symbol {
+        RefCell::borrow_mut(&*self.0).generate()
+    }
 }
 
 impl Default for Environment {
     #[inline]
     fn default() -> Self {
-        Self::new([])
+        Self::new()
     }
 }
 
