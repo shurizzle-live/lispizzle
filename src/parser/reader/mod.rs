@@ -171,41 +171,6 @@ fn char_equals_ci(a: char, b: char) -> bool {
     a.len() == b.len() && a.zip(b).all(|(a, b)| a == b)
 }
 
-fn str_equals_ci(a: &str, b: &str) -> bool {
-    let mut a = a.chars();
-    let mut b = b.chars();
-
-    loop {
-        match (a.next(), b.next()) {
-            (Some(a), Some(b)) => {
-                if !char_equals_ci(a, b) {
-                    return false;
-                }
-            }
-            (Some(_), None) | (None, Some(_)) => return false,
-            (None, None) => return true,
-        }
-    }
-}
-
-#[test]
-fn eqci() {
-    assert!(char_equals_ci('ẞ', 'ß'));
-    assert!(str_equals_ci("aẞ", "Aß"));
-}
-
-fn needs_char_ci(i: Input<'_>, need: char) -> std::result::Result<Input<'_>, Error> {
-    if let Some((c, rest)) = next_char(i.clone()) {
-        if char_equals_ci(c, need) {
-            Ok(rest)
-        } else {
-            Err(i.err("unexpected character"))
-        }
-    } else {
-        Err(i.err("unexpected EOF"))
-    }
-}
-
 fn symbol_or_integer(i: Input<'_>) -> Result<Value> {
     let (len, is_integer) = {
         let mut is_integer = false;
