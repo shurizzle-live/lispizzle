@@ -67,3 +67,65 @@ Found 9 outliers among 100 measurements (9.00%)
   2 (2.00%) high mild
   7 (7.00%) high severe
 ```
+
+On Linux i7-10750H CPU @ 2.60GHz
+
+```
+count/algo              time:   [18.172 µs 18.217 µs 18.268 µs]
+                        change: [-0.2383% +0.4597% +1.0863%] (p = 0.19 > 0.05)
+                        No change in performance detected.
+Found 5 outliers among 100 measurements (5.00%)
+  1 (1.00%) high mild
+  4 (4.00%) high severe
+count/naive             time:   [18.612 µs 18.672 µs 18.738 µs]
+                        change: [-0.6951% -0.0311% +0.6689%] (p = 0.93 > 0.05)
+                        No change in performance detected.
+Found 9 outliers among 100 measurements (9.00%)
+  5 (5.00%) high mild
+  4 (4.00%) high severe
+
+skip 100/algo           time:   [26.727 ns 26.827 ns 26.947 ns]
+                        change: [-0.6610% +0.1060% +0.8938%] (p = 0.79 > 0.05)
+                        No change in performance detected.
+Found 7 outliers among 100 measurements (7.00%)
+  5 (5.00%) high mild
+  2 (2.00%) high severe
+skip 100/naive          time:   [115.56 ns 115.79 ns 116.06 ns]
+                        change: [-1.0042% -0.5098% +0.0242%] (p = 0.05 > 0.05)
+                        No change in performance detected.
+Found 11 outliers among 100 measurements (11.00%)
+  7 (7.00%) high mild
+  4 (4.00%) high severe
+
+skip 300_000/algo       time:   [62.093 µs 62.304 µs 62.525 µs]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+skip 300_000/naive      time:   [322.57 µs 323.23 µs 323.99 µs]
+Found 13 outliers among 100 measurements (13.00%)
+  9 (9.00%) high mild
+  4 (4.00%) high severe
+
+skip-count 100/algo     time:   [67.430 ns 67.814 ns 68.270 ns]
+                        change: [-5.7140% -5.0082% -4.2352%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 7 outliers among 100 measurements (7.00%)
+  5 (5.00%) high mild
+  2 (2.00%) high severe
+skip-count 100/naive    time:   [127.10 ns 127.32 ns 127.55 ns]
+                        change: [-2.6021% -2.0781% -1.5958%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 7 outliers among 100 measurements (7.00%)
+  4 (4.00%) high mild
+  3 (3.00%) high severe
+
+skip-count 300_000/algo time:   [181.18 µs 181.63 µs 182.16 µs]
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) high mild
+  3 (3.00%) high severe
+skip-count 300_000/naive
+                        time:   [346.31 µs 347.16 µs 348.03 µs]
+Found 4 outliers among 100 measurements (4.00%)
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+```
