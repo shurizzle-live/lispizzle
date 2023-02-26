@@ -53,6 +53,8 @@ pub trait Reader:
     }
 
     fn ltrim(self) -> Self;
+
+    fn split_at<F: Fn(char) -> bool>(self, f: F) -> Option<(Self, Self)>;
 }
 
 #[derive(Clone, Debug)]
@@ -249,6 +251,39 @@ impl<'a> Reader for StringReader<'a> {
             char_count: self.char_count - len,
             text: self.text,
         }
+    }
+
+    fn split_at<F: Fn(char) -> bool>(self, f: F) -> Option<(Self, Self)> {
+        let mut nl = 0;
+        let mut bytes_len = 0;
+        for (char_count, c) in self.as_str().chars().enumerate() {
+            if c == '\n' {
+                nl += 1;
+            }
+
+            if f(c) {
+                return Some((
+                    Self {
+                        offset: self.offset,
+                        last: self.offset + bytes_len,
+                        line: self.line,
+                        char_count,
+                        text: self.text,
+                    },
+                    Self {
+                        offset: self.offset + bytes_len + c.len_utf8(),
+                        last: self.last,
+                        line: self.line + nl,
+                        char_count: self.char_count - char_count - 1,
+                        text: self.text,
+                    },
+                ));
+            }
+
+            bytes_len += c.len_utf8();
+        }
+
+        None
     }
 }
 

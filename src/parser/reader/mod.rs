@@ -25,9 +25,7 @@ use super::Error;
 //                 char
 // ✔️  Nil        #nil
 // ✔️  Boolean    #[tf]
-// ❓ String     "([^"]|\\["vtrn\\])"
-//               \uXXXX unimplemented
-//               \u{XXXXXX} unimplemented
+// ✔️  String     "([^"]|\\(["vtrn\\]|x[0-9a-zA-Z]{2}|u([0-9a-zA-Z]{4}|\{u[0-9a-zA-Z]+\})))"
 // ✔️  Integer    [+-][0-9]+
 // ✔️  Symbol     [^\s,'@`()\"|#]+
 // ✔️  List       ((list|literal)*)
@@ -200,22 +198,63 @@ fn symbol_or_integer(i: Input<'_>) -> Result<Value> {
     }
 }
 
-fn parse_single_hex(i: Input) -> Option<(Input, u8)> {
-    next_char(i).and_then(|(c, i)| match c {
-        '0'..='9' => Some((i, (c as u8) - b'0')),
-        'a'..='f' => Some((i, (c as u8) - (b'a' - 10))),
-        'A'..='F' => Some((i, (c as u8) - (b'A' - 10))),
-        _ => None,
+fn parse_nibble(i: Input) -> Option<(Input, u8)> {
+    next_char(i).and_then(|(c, i)| c.to_digit(16).map(|c| (i, c as u8)))
+}
+
+fn parse_4hex_char(i: Input) -> Option<(Input, char)> {
+    parse_nibble(i).and_then(|(i, c1)| {
+        parse_nibble(i).and_then(|(i, c2)| {
+            parse_nibble(i).and_then(|(i, c3)| {
+                parse_nibble(i).map(|(i, c4)| {
+                    (i, unsafe {
+                        char::from_u32_unchecked(
+                            ((((((c1 as u32) << 4) | (c2 as u32)) << 4) | (c3 as u32)) << 4)
+                                | (c4 as u32),
+                        )
+                    })
+                })
+            })
+        })
     })
+}
+
+fn parse_codepoint(i: Input) -> Option<char> {
+    let mut acc = 0u32;
+    let mut at_least_one = false;
+    for c in i.as_str().chars() {
+        at_least_one = true;
+        acc = acc.checked_shl(4)? | c.to_digit(16)?;
+    }
+
+    if at_least_one {
+        char::from_u32(acc)
+    } else {
+        None
+    }
+}
+
+fn parse_string_codepoint<'a>(init: Input<'a>, i: Input<'a>) -> Result<'a, char> {
+    const ERR: &str = "invalid UTF-8 character escape sequence";
+    if let Some(('{', i)) = next_char(i.clone()) {
+        i.split_at(|c| c == '}')
+            .and_then(|(codepoint, i)| parse_codepoint(codepoint).map(|c| (i, c)))
+            .ok_or_else(|| init.err(ERR))
+    } else if let Some((i, c)) = parse_4hex_char(i) {
+        i.ok(c)
+    } else {
+        Err(init.err(ERR))
+    }
 }
 
 fn string(i: Input<'_>) -> Result<Value> {
     let mut i = needs_char(i, '"')?;
     let mut escaping = false;
     let mut res = EcoString::new();
+    let mut prev_input = i.clone();
 
     loop {
-        let prev_input = i.clone();
+        let pinput = i.clone();
         if let Some((c, new_i)) = next_char(i.clone()) {
             i = new_i;
 
@@ -232,12 +271,17 @@ fn string(i: Input<'_>) -> Result<Value> {
                     '"' => '"',
                     'x' => {
                         let c;
-                        (i, c) = parse_single_hex(i)
-                            .and_then(|(i, c1)| {
-                                parse_single_hex(i).map(|(i, c2)| (i, (c1 << 4) | c2))
+                        (i, c) = parse_nibble(i)
+                            .and_then(|(i, c1)| parse_nibble(i).map(|(i, c2)| (i, (c1 << 4) | c2)))
+                            .ok_or_else(|| {
+                                prev_input.err("invalid ascii character escape sequence")
                             })
-                            .ok_or_else(|| prev_input.err("invalid character escape sequence"))
                             .map(|(i, c)| (i, c as char))?;
+                        c
+                    }
+                    'u' => {
+                        let c;
+                        (i, c) = parse_string_codepoint(prev_input, i)?;
                         c
                     }
                     _ => return Err(prev_input.err("unexpected escaped symbol")),
@@ -259,6 +303,7 @@ fn string(i: Input<'_>) -> Result<Value> {
         } else {
             return Err(i.err("unexpected EOF"));
         }
+        prev_input = pinput;
     }
 }
 
@@ -418,5 +463,11 @@ mod tests {
             "\"ciao\"".into()
         );
         assert_fp_eq!(string(Input::new(None, "\"\\xff\"")), "ÿ".into());
+        assert_fp_eq!(string(Input::new(None, "\"\\u000a\"")), "\n".into());
+        assert_fp_eq!(string(Input::new(None, "\"\\u{a}\"")), "\n".into());
+        assert_fp_eq!(
+            string(Input::new(None, "\"\\u{00000000000000000000a}\"")),
+            "\n".into()
+        );
     }
 }

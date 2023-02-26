@@ -51,12 +51,31 @@ impl<'a> Input<'a> {
         &self.inner
     }
 
+    #[inline]
     pub fn ltrim(self) -> Self {
         Self {
             path: self.path,
             inner: self.inner.ltrim(),
             need_ws: self.need_ws,
         }
+    }
+
+    #[inline]
+    pub fn split_at<F: Fn(char) -> bool>(self, f: F) -> Option<(Self, Self)> {
+        let (a, b) = self.inner.split_at(f)?;
+
+        Some((
+            Self {
+                path: self.path,
+                inner: a,
+                need_ws: self.need_ws,
+            },
+            Self {
+                path: self.path,
+                inner: b,
+                need_ws: self.need_ws,
+            },
+        ))
     }
 
     pub fn err<M: Into<Message>>(self, message: M) -> Error {
