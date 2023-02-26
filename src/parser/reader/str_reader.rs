@@ -51,6 +51,8 @@ pub trait Reader:
             column: self.column(),
         }
     }
+
+    fn ltrim(self) -> Self;
 }
 
 #[derive(Clone, Debug)]
@@ -221,6 +223,32 @@ impl<'a> Reader for StringReader<'a> {
     #[inline]
     fn line_str(&self) -> Cow<'a, str> {
         self.line_and_offset().0
+    }
+
+    fn ltrim(self) -> Self {
+        let mut nl = 0;
+        let mut len = 0;
+        let mut bytes_len = 0;
+        for c in self.as_str().chars() {
+            if c == '\n' {
+                nl += 1;
+                len += 1;
+                bytes_len += c.len_utf8();
+            } else if c.is_whitespace() {
+                len += 1;
+                bytes_len += c.len_utf8();
+            } else {
+                break;
+            }
+        }
+
+        Self {
+            offset: self.offset + bytes_len,
+            last: self.last,
+            line: self.line + nl,
+            char_count: self.char_count - len,
+            text: self.text,
+        }
     }
 }
 

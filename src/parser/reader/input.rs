@@ -45,6 +45,14 @@ impl<'a> Input<'a> {
         &self.inner
     }
 
+    pub fn ltrim(self) -> Self {
+        Self {
+            path: self.path,
+            inner: self.inner.ltrim(),
+            need_ws: self.need_ws,
+        }
+    }
+
     pub fn err<M: Into<Message>>(self, message: M) -> Error {
         Error {
             path: self
