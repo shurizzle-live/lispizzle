@@ -25,7 +25,9 @@ use super::Error;
 //                 char
 // ✔️  Nil        #nil
 // ✔️  Boolean    #[tf]
-// ✔️  String     "([^"]|\\["vtrn\\])"
+// ❓ String     "([^"]|\\["vtrn\\])"
+//               \uXXXX unimplemented
+//               \u{XXXXXX} unimplemented
 // ✔️  Integer    [+-][0-9]+
 // ✔️  Symbol     [^\s,'@`()\"|#]+
 // ✔️  List       ((list|literal)*)
@@ -198,6 +200,15 @@ fn symbol_or_integer(i: Input<'_>) -> Result<Value> {
     }
 }
 
+fn parse_single_hex(i: Input) -> Option<(Input, u8)> {
+    next_char(i).and_then(|(c, i)| match c {
+        '0'..='9' => Some((i, (c as u8) - b'0')),
+        'a'..='f' => Some((i, (c as u8) - (b'a' - 10))),
+        'A'..='F' => Some((i, (c as u8) - (b'A' - 10))),
+        _ => None,
+    })
+}
+
 fn string(i: Input<'_>) -> Result<Value> {
     let mut i = needs_char(i, '"')?;
     let mut escaping = false;
@@ -219,6 +230,16 @@ fn string(i: Input<'_>) -> Result<Value> {
                     '\\' => '\\',
                     '0' => '\0',
                     '"' => '"',
+                    'x' => {
+                        let c;
+                        (i, c) = parse_single_hex(i)
+                            .and_then(|(i, c1)| {
+                                parse_single_hex(i).map(|(i, c2)| (i, (c1 << 4) | c2))
+                            })
+                            .ok_or_else(|| prev_input.err("invalid character escape sequence"))
+                            .map(|(i, c)| (i, c as char))?;
+                        c
+                    }
                     _ => return Err(prev_input.err("unexpected escaped symbol")),
                 };
                 res.push(c);
@@ -387,5 +408,15 @@ mod tests {
 
         assert_fp_eq!(list(Input::new(None, "(1(2 3))")), expected.clone());
         assert_fp_eq!(list(Input::new(None, "(1    (2    3)  )")), expected);
+    }
+
+    #[test]
+    fn parse_string() {
+        assert_fp_eq!(string(Input::new(None, "\"ciao\"")), "ciao".into());
+        assert_fp_eq!(
+            string(Input::new(None, "\"\\\"ciao\\\"\"")),
+            "\"ciao\"".into()
+        );
+        assert_fp_eq!(string(Input::new(None, "\"\\xff\"")), "ÿ".into());
     }
 }
