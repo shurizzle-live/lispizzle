@@ -3,10 +3,10 @@ use std::{fmt, num::NonZeroUsize, rc::Rc};
 use ecow::EcoString;
 use im_rc::Vector;
 
-use crate::Value;
+use crate::{Environment, Value};
 
 pub trait Callable {
-    fn call(&self, parameters: Vector<Value>) -> Value;
+    fn call(&self, env: Environment, parameters: Vector<Value>) -> Value;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -15,19 +15,20 @@ pub enum Parameters<T1, T2> {
     Variadic(T2),
 }
 
-struct NativeFnRepr<T: (Fn(Vector<Value>) -> Value) + ?Sized + 'static> {
+struct NativeFnRepr<T: (Fn(Environment, Vector<Value>) -> Value) + ?Sized + 'static> {
     parameters: Parameters<usize, NonZeroUsize>,
     doc: Option<EcoString>,
     fun: T,
 }
 
-impl<F: (Fn(Vector<Value>) -> Value) + 'static> NativeFnRepr<F> {
+#[allow(clippy::type_complexity)]
+impl<F: (Fn(Environment, Vector<Value>) -> Value) + 'static> NativeFnRepr<F> {
     #[inline]
     pub fn new(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<EcoString>,
         fun: F,
-    ) -> Rc<NativeFnRepr<dyn Fn(Vector<Value>) -> Value>> {
+    ) -> Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Value>> {
         Rc::new(NativeFnRepr {
             parameters,
             doc,
@@ -36,14 +37,15 @@ impl<F: (Fn(Vector<Value>) -> Value) + 'static> NativeFnRepr<F> {
     }
 }
 
-impl Callable for Rc<NativeFnRepr<dyn Fn(Vector<Value>) -> Value>> {
+impl Callable for Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Value>> {
     #[inline(always)]
-    fn call(&self, parameters: Vector<Value>) -> Value {
-        (self.fun)(parameters)
+    fn call(&self, env: Environment, parameters: Vector<Value>) -> Value {
+        (self.fun)(env, parameters)
     }
 }
 
-struct NativeFn(Rc<NativeFnRepr<dyn Fn(Vector<Value>) -> Value>>);
+#[allow(clippy::type_complexity)]
+struct NativeFn(Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Value>>);
 
 fn fmt_parameters<T: fmt::Display, I: IntoIterator<Item = T>>(
     f: &mut fmt::Formatter<'_>,
@@ -82,7 +84,7 @@ fn fmt_parameters<T: fmt::Display, I: IntoIterator<Item = T>>(
 
 impl NativeFn {
     #[inline]
-    fn new<F: (Fn(Vector<Value>) -> Value) + 'static>(
+    fn new<F: (Fn(Environment, Vector<Value>) -> Value) + 'static>(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<EcoString>,
         fun: F,
@@ -117,8 +119,8 @@ impl Eq for NativeFn {}
 
 impl Callable for NativeFn {
     #[inline]
-    fn call(&self, parameters: Vector<Value>) -> Value {
-        self.0.call(parameters)
+    fn call(&self, env: Environment, parameters: Vector<Value>) -> Value {
+        self.0.call(env, parameters)
     }
 }
 
@@ -136,7 +138,7 @@ enum LambdaRepr {
 
 impl LambdaRepr {
     #[inline]
-    fn from_native<F: (Fn(Vector<Value>) -> Value) + 'static>(
+    fn from_native<F: (Fn(Environment, Vector<Value>) -> Value) + 'static>(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<EcoString>,
         fun: F,
@@ -154,9 +156,9 @@ impl LambdaRepr {
 
 impl Callable for LambdaRepr {
     #[inline]
-    fn call(&self, parameters: Vector<Value>) -> Value {
+    fn call(&self, env: Environment, parameters: Vector<Value>) -> Value {
         match self {
-            Self::Native(f) => f.call(parameters),
+            Self::Native(f) => f.call(env, parameters),
         }
     }
 }
@@ -179,7 +181,7 @@ pub struct Lambda {
 
 impl Lambda {
     #[inline]
-    pub fn from_native<F: (Fn(Vector<Value>) -> Value) + 'static>(
+    pub fn from_native<F: (Fn(Environment, Vector<Value>) -> Value) + 'static>(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<EcoString>,
         fun: F,
@@ -225,8 +227,8 @@ impl Lambda {
 
 impl Callable for Lambda {
     #[inline]
-    fn call(&self, parameters: Vector<Value>) -> Value {
-        self.repr.call(parameters)
+    fn call(&self, env: Environment, parameters: Vector<Value>) -> Value {
+        self.repr.call(env, parameters)
     }
 }
 
@@ -263,9 +265,9 @@ mod tests {
     use im_rc::{vector, Vector};
     use rug::Integer;
 
-    use crate::{Callable, Lambda, Parameters, Value};
+    use crate::{Callable, Environment, Lambda, Parameters, Value};
 
-    fn add(pars: Vector<Value>) -> Value {
+    fn add(_env: Environment, pars: Vector<Value>) -> Value {
         let mut res = Integer::from(0);
 
         for e in pars {
@@ -281,16 +283,23 @@ mod tests {
 
     #[test]
     fn run() {
+        let env = Environment::new();
         let lambda = Lambda::from_native(
             Parameters::Variadic(NonZeroUsize::new(1).unwrap()),
             None,
             add,
         );
         assert!(lambda == lambda);
-        assert_eq!(lambda.call(vector![]), 0.into());
-        assert_eq!(lambda.call(vector![1.into()]), 1.into());
-        assert_eq!(lambda.call(vector![1.into(), 2.into()]), 3.into());
-        assert_eq!(lambda.call(vector![1.into(), 2.into(), 3.into()]), 6.into());
+        assert_eq!(lambda.call(env.clone(), vector![]), 0.into());
+        assert_eq!(lambda.call(env.clone(), vector![1.into()]), 1.into());
+        assert_eq!(
+            lambda.call(env.clone(), vector![1.into(), 2.into()]),
+            3.into()
+        );
+        assert_eq!(
+            lambda.call(env, vector![1.into(), 2.into(), 3.into()]),
+            6.into()
+        );
     }
 
     #[test]

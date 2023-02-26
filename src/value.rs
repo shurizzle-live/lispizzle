@@ -70,10 +70,10 @@ impl Value {
         matches!(self, Value::List(_))
     }
 
-    #[inline]
-    pub fn apply(&self, args: Vector<Value>) -> Value {
+    pub fn apply(&self, env: Environment, args: Vector<Value>) -> Value {
         match self {
-            Self::Lambda(l) => l.call(args),
+            Self::Lambda(l) => l.call(env, args),
+            Self::Var(v) => v.get().apply(env, args),
             _ => Self::Nil,
         }
     }

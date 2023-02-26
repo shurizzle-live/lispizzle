@@ -123,7 +123,7 @@ impl Default for Environment {
             Lambda::from_native(
                 Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
                 Some("plus.".into()),
-                |values| match values.len() {
+                |_env, values| match values.len() {
                     0 => Integer::from(0).into(),
                     1 => values[0].clone(),
                     _ => {
@@ -142,6 +142,55 @@ impl Default for Environment {
                         acc.into()
                     }
                 },
+            )
+            .into(),
+        );
+
+        me.define(
+            Symbol::Name("println".into()),
+            Lambda::from_native(
+                Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+                Some("Print arguments".into()),
+                |_env, values| {
+                    for (i, v) in values.iter().enumerate() {
+                        if i == 0 {
+                            print!("{v}");
+                        } else {
+                            print!(" {v}");
+                        }
+                    }
+                    Value::Nil
+                },
+            )
+            .into(),
+        );
+
+        me.define(
+            Symbol::Name("println".into()),
+            Lambda::from_native(
+                Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+                Some("Print arguments followed by a newline".into()),
+                |_env, values| {
+                    for (i, v) in values.iter().enumerate() {
+                        if i == 0 {
+                            print!("{v}");
+                        } else {
+                            print!(" {v}");
+                        }
+                    }
+                    println!();
+                    Value::Nil
+                },
+            )
+            .into(),
+        );
+
+        me.define(
+            Symbol::Name("list".into()),
+            Lambda::from_native(
+                Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+                Some("Create a list.".into()),
+                |_env, values| values.into(),
             )
             .into(),
         );
@@ -182,17 +231,17 @@ mod tests {
     use im_rc::vector;
     use rug::Integer;
 
-    use crate::{Symbol, Value};
+    use crate::{Environment, Symbol, Value};
 
     #[test]
     fn plus() {
-        let env = super::Environment::default();
+        let env = Environment::default();
 
         assert_eq!(
             env.get(Symbol::Name("+".into()))
                 .unwrap()
                 .get()
-                .apply(vector![]),
+                .apply(env.clone(), vector![]),
             Integer::from(0).into()
         );
 
@@ -200,7 +249,7 @@ mod tests {
             env.get(Symbol::Name("+".into()))
                 .unwrap()
                 .get()
-                .apply(vector![Integer::from(69).into()]),
+                .apply(env.clone(), vector![Integer::from(69).into()]),
             Integer::from(69).into()
         );
 
@@ -208,27 +257,38 @@ mod tests {
             env.get(Symbol::Name("+".into()))
                 .unwrap()
                 .get()
-                .apply(vector![Value::String("ciao".into())]),
+                .apply(env.clone(), vector![Value::String("ciao".into())]),
             Value::String("ciao".into())
         );
 
         assert_eq!(
-            env.get(Symbol::Name("+".into()))
-                .unwrap()
-                .get()
-                .apply(vector![Integer::from(34).into(), Integer::from(35).into()]),
+            env.get(Symbol::Name("+".into())).unwrap().get().apply(
+                env.clone(),
+                vector![Integer::from(34).into(), Integer::from(35).into()]
+            ),
             Integer::from(69).into()
         );
 
         assert_eq!(
-            env.get(Symbol::Name("+".into()))
+            env.get(Symbol::Name("+".into())).unwrap().get().apply(
+                env,
+                vector![Integer::from(69).into(), Value::String("ciao".into())]
+            ),
+            Value::Nil
+        );
+    }
+
+    #[test]
+    fn list() {
+        let env = Environment::default();
+
+        let l = vector![1.into(), 2.into(), 3.into()];
+        assert_eq!(
+            env.get(Symbol::Name("list".into()))
                 .unwrap()
                 .get()
-                .apply(vector![
-                    Integer::from(69).into(),
-                    Value::String("ciao".into())
-                ]),
-            Value::Nil
+                .apply(env, l.clone()),
+            l.into()
         );
     }
 }
