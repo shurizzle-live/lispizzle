@@ -8,6 +8,7 @@ mod util;
 use ecow::EcoString;
 use im_rc::Vector;
 pub use input::*;
+use phf::phf_map;
 pub use str_reader::*;
 
 use rug::{Complete, Integer};
@@ -18,7 +19,7 @@ use input::Input;
 
 use super::Error;
 
-// ❌ Character  #\...
+// ✔️  Character  #\...
 //                 <octal>
 //                 x<hex>
 //                 name
@@ -33,6 +34,55 @@ use super::Error;
 type Result<'a, T> = std::result::Result<(Input<'a>, T), Error>;
 
 const INVALID_SYM_CHARS: &str = ",'@`()\"|#";
+
+const CHAR_NAME_TO_CODEPOINT: phf::Map<&'static str, char> = phf_map! {
+    "nul" => 0x00 as char,
+    "null" => 0x00 as char,
+    "soh" => 0x01 as char,
+    "stx" => 0x02 as char,
+    "etx" => 0x03 as char,
+    "eot" => 0x04 as char,
+    "enq" => 0x05 as char,
+    "ack" => 0x06 as char,
+    "bel" => 0x07 as char,
+    "bell" => 0x07 as char,
+    "bs" => 0x08 as char,
+    "backspace" => 0x08 as char,
+    "ht" => 0x09 as char,
+    "tab" => 0x09 as char,
+    "linefeed" => 0x0A as char,
+    "nl" => 0x0A as char,
+    "newline" => 0x0A as char,
+    "vt" => 0x0B as char,
+    "page" => 0x0C as char,
+    "np" => 0x0C as char,
+    "return" => 0x0D as char,
+    "cr" => 0x0D as char,
+    "so" => 0x0E as char,
+    "si" => 0x0F as char,
+    "dle" => 0x10 as char,
+    "dc1" => 0x11 as char,
+    "dc2" => 0x12 as char,
+    "dc3" => 0x13 as char,
+    "dc4" => 0x14 as char,
+    "nak" => 0x15 as char,
+    "syn" => 0x16 as char,
+    "etb" => 0x17 as char,
+    "can" => 0x18 as char,
+    "em" => 0x19 as char,
+    "sub" => 0x1A as char,
+    "esc" => 0x1B as char,
+    "escape" => 0x1B as char,
+    "fs" => 0x1C as char,
+    "gs" => 0x1D as char,
+    "rs" => 0x1E as char,
+    "us" => 0x1F as char,
+    "space" => 0x20 as char,
+    "sp" => 0x20 as char,
+    "rubout" => 0x7F as char,
+    "delete" => 0x7F as char,
+    "del" => 0x7F as char,
+};
 
 fn skip_ws(mut i: Input<'_>) -> std::result::Result<Input<'_>, Error> {
     let old_len = i.len();
@@ -219,16 +269,10 @@ fn parse_4hex_char(i: Input) -> Option<(Input, char)> {
     })
 }
 
+#[inline]
 fn parse_codepoint(i: Input) -> Option<char> {
-    let mut acc = 0u32;
-    let mut at_least_one = false;
-    for c in i.as_str().chars() {
-        at_least_one = true;
-        acc = acc.checked_shl(4)? | c.to_digit(16)?;
-    }
-
-    if at_least_one {
-        char::from_u32(acc)
+    if let Ok(c) = u32::from_str_radix(i.as_str(), 16) {
+        char::from_u32(c)
     } else {
         None
     }
@@ -307,7 +351,61 @@ fn string(i: Input<'_>) -> Result<Value> {
     }
 }
 
-fn nil_or_bool(i: Input<'_>) -> Result<Value> {
+fn parse_char<'a>(init: Input<'a>, i: Input<'a>) -> Result<'a, Value> {
+    if let Some((c, i)) = next_char(i.clone()) {
+        if c == ' ' {
+            return i.unset_needs_ws().ok(' '.into());
+        } else if c == '(' && c == ')' {
+            return i.set_needs_ws().ok(' '.into());
+        }
+    }
+
+    let (i, rest) = if let Some(x) = i
+        .clone()
+        .split_at(|c| c.is_whitespace() || c == '(' || c == ')')
+    {
+        x
+    } else {
+        (i.clone(), unsafe { i.get(i.len()..).unwrap_unchecked() })
+    };
+    let rest = rest.set_needs_ws();
+
+    if i.is_empty() {
+        return Err(init.err("invalid character"));
+    }
+
+    if let Some(c) = CHAR_NAME_TO_CODEPOINT
+        .get(&i.as_str().to_lowercase())
+        .copied()
+    {
+        return rest.ok(c.into());
+    }
+
+    if i.len() == 1 {
+        return rest.ok(unsafe { i.get_unchecked(0) }.into());
+    }
+
+    {
+        if let Ok(c) = u32::from_str_radix(i.as_str(), 8) {
+            if let Some(c) = char::from_u32(c) {
+                return rest.ok(c.into());
+            }
+        }
+    }
+
+    if let Some(('x', i)) = next_char(i) {
+        return if let Some(c) = parse_codepoint(i) {
+            rest.ok(c.into())
+        } else {
+            Err(init.err("invalid codepoint"))
+        };
+    }
+
+    Err(init.err("invalid character"))
+}
+
+fn nil_or_bool_or_char(i: Input) -> Result<Value> {
+    let init = i.clone();
     let i = needs_char(i, '#')?;
 
     if let Some(i) = istarts_with(i.clone(), "nil") {
@@ -316,6 +414,8 @@ fn nil_or_bool(i: Input<'_>) -> Result<Value> {
         i.set_needs_ws().ok(true.into())
     } else if let Some(i) = istarts_with_ci(i.clone(), "f") {
         i.set_needs_ws().ok(false.into())
+    } else if let Some(i) = istarts_with(i.clone(), "\\") {
+        parse_char(init, i)
     } else if i.is_empty() {
         Err(i.err("unexpected EOF"))
     } else {
@@ -327,7 +427,7 @@ fn literal(i: Input<'_>) -> Result<Value> {
     if let Some(c) = i.peek() {
         match c {
             '"' => return string(i),
-            '#' => return nil_or_bool(i),
+            '#' => return nil_or_bool_or_char(i),
             _ => (),
         }
     }
@@ -469,5 +569,21 @@ mod tests {
             string(Input::new(None, "\"\\u{00000000000000000000a}\"")),
             "\n".into()
         );
+    }
+
+    #[test]
+    fn char() {
+        assert_fp_eq!(nil_or_bool_or_char(Input::new(None, "#\\x")), 'x'.into());
+        assert_fp_eq!(
+            nil_or_bool_or_char(Input::new(None, "#\\x0000000000000000a")),
+            '\n'.into()
+        );
+        assert_fp_eq!(
+            nil_or_bool_or_char(Input::new(None, "#\\nEwLiNe")),
+            '\n'.into()
+        );
+        assert_fp_eq!(nil_or_bool_or_char(Input::new(None, "#\\12")), '\n'.into());
+        assert_fp_eq!(nil_or_bool_or_char(Input::new(None, "#\\n")), 'n'.into());
+        assert_fp_eq!(nil_or_bool_or_char(Input::new(None, "#\\ ")), ' '.into());
     }
 }

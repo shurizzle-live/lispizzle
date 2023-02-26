@@ -11,6 +11,7 @@ pub enum Value {
     Unspecified,
     Nil,
     Boolean(bool),
+    Character(char),
     Integer(Integer),
     String(EcoString),
     Symbol(EcoString),
@@ -35,6 +36,11 @@ impl Value {
     }
 
     #[inline]
+    pub fn is_char(&self) -> bool {
+        matches!(self, Value::Character(_))
+    }
+
+    #[inline]
     pub fn is_string(&self) -> bool {
         matches!(self, Value::String(_))
     }
@@ -53,13 +59,16 @@ impl Value {
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::Unspecified, Self::Unspecified) => true,
+            (Self::Nil, Self::Nil) => true,
             (Self::Boolean(l0), Self::Boolean(r0)) => l0 == r0,
+            (Self::Character(l0), Self::Character(r0)) => l0 == r0,
             (Self::Integer(l0), Self::Integer(r0)) => l0 == r0,
             (Self::String(l0), Self::String(r0)) => l0 == r0,
             (Self::Symbol(l0), Self::Symbol(r0)) => l0 == r0,
             (Self::Lambda(l0), Self::Lambda(r0)) => l0 == r0,
             (Self::List(l0), Self::List(r0)) => l0 == r0,
-            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+            _ => false,
         }
     }
 }
@@ -70,6 +79,13 @@ impl From<bool> for Value {
     #[inline]
     fn from(value: bool) -> Self {
         Self::Boolean(value)
+    }
+}
+
+impl From<char> for Value {
+    #[inline]
+    fn from(value: char) -> Self {
+        Self::Character(value)
     }
 }
 
@@ -233,6 +249,7 @@ impl fmt::Debug for Value {
                     write!(f, "#f")
                 }
             }
+            Self::Character(c) => fmt::Debug::fmt(c, f),
             Self::Integer(i) => fmt::Debug::fmt(i, f),
             Self::String(s) => fmt::Debug::fmt(s, f),
             Self::Symbol(s) => fmt::Display::fmt(s, f),
