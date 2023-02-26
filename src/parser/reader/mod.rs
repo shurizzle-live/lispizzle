@@ -11,7 +11,7 @@ use phf::phf_map;
 
 use rug::{Complete, Integer};
 
-use crate::Value;
+use crate::{Symbol, Value};
 
 pub use input::Input;
 
@@ -209,7 +209,7 @@ fn symbol_or_integer(i: Input<'_>) -> Result<Value> {
             .complete()
             .into())
     } else {
-        i.ok(Value::Symbol(parsed.as_str().into()))
+        i.ok(Value::Symbol(Symbol::Name(parsed.as_str().into())))
     }
 }
 
@@ -508,7 +508,7 @@ mod tests {
     fn symbol() {
         assert_fp_eq!(
             symbol_or_integer(Input::new(None, "-0000000test")),
-            Value::Symbol("-0000000test".into())
+            Value::Symbol(Symbol::Name("-0000000test".into()))
         );
     }
 

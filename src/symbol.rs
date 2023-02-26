@@ -5,7 +5,7 @@ use ecow::EcoString;
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub enum Symbol {
     Name(EcoString),
-    Gensym(usize),
+    Gensym(usize, usize),
 }
 
 impl From<EcoString> for Symbol {
@@ -15,18 +15,11 @@ impl From<EcoString> for Symbol {
     }
 }
 
-impl From<usize> for Symbol {
-    #[inline]
-    fn from(value: usize) -> Self {
-        Self::Gensym(value)
-    }
-}
-
 impl fmt::Debug for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Name(name) => fmt::Display::fmt(name, f),
-            Self::Gensym(n) => write!(f, "gensym({})", n),
+            Self::Gensym(env, n) => write!(f, "gensym({},{})", env, n),
         }
     }
 }

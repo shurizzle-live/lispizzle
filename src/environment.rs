@@ -24,10 +24,18 @@ impl EnvironmentRepr {
 
     pub fn get<B: Borrow<Symbol>>(&self, key: B) -> Option<Var> {
         let key = key.borrow();
-        self.storage
-            .get(key)
-            .cloned()
-            .or_else(|| self.parent().and_then(|p| p.get(key)))
+
+        match key {
+            Symbol::Gensym(env, _) if *env == (self as *const _ as usize) => {
+                self.storage.get(key).cloned()
+            }
+            Symbol::Name(_) => self
+                .storage
+                .get(key)
+                .cloned()
+                .or_else(|| self.parent().and_then(|p| p.get(key))),
+            _ => self.parent().and_then(|p| p.get(key)),
+        }
     }
 
     pub fn set<B: Borrow<Symbol>>(&self, key: B, value: Value) -> Result<(), Value> {
@@ -39,19 +47,24 @@ impl EnvironmentRepr {
         }
     }
 
-    pub fn define<I: Into<Symbol>>(&self, key: I, value: Value) {
+    pub fn define<I: Into<Symbol>>(&mut self, key: I, value: Value) {
         let key = key.into();
-        if let Some(var) = self.storage.get(&key).cloned() {
-            var.set(value);
-        } else {
-            self.storage.insert(key.into(), Var::new(value));
+
+        if matches!(&key, Symbol::Gensym(env, _) if *env == (self as *const _ as usize))
+            || matches!(&key, Symbol::Name(_))
+        {
+            if let Some(var) = self.storage.get(&key).cloned() {
+                var.set(value);
+            } else {
+                self.storage.insert(key, Var::new(value));
+            }
         }
     }
 
     pub fn generate(&mut self) -> Symbol {
-        let i = self.gensym;
+        let sym = Symbol::Gensym(self as *mut _ as usize, self.gensym);
         self.gensym += 1;
-        Symbol::Gensym(i)
+        sym
     }
 }
 
@@ -70,7 +83,7 @@ impl Environment {
     pub fn child(&self) -> Self {
         Self(Rc::new(RefCell::new(EnvironmentRepr {
             parent: Some(Rc::clone(&self.0)),
-            gensym: RefCell::borrow(&*self.0).gensym,
+            gensym: 0,
             storage: HashMap::new(),
         })))
     }
@@ -87,7 +100,7 @@ impl Environment {
 
     #[inline]
     pub fn define<I: Into<Symbol>>(&self, key: I, value: Value) {
-        RefCell::borrow(&*self.0).define(key, value)
+        RefCell::borrow_mut(&*self.0).define(key, value)
     }
 
     #[inline]

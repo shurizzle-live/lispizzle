@@ -78,11 +78,13 @@ impl<'a> StringReader<'a> {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub const fn offset(&self) -> usize {
         self.offset
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub const fn byte_len(&self) -> usize {
         self.last - self.offset
     }
