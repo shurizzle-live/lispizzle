@@ -179,7 +179,7 @@ impl Default for Environment {
             doc: Option<S2>,
             f: F,
         ) where
-            F: (Fn(Environment, Vector<Value>) -> Value) + 'static,
+            F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static,
             S1: Into<Str>,
             S2: Into<Str>,
         {
@@ -194,23 +194,23 @@ impl Default for Environment {
             "+", 
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
             Some("Return the sum of all parameter values. Return 0 if called without any parameters."),
-            |_env, values| match values.len() {
-                0 => Integer::from(0).into(),
-                1 => values[0].clone(),
+            |env, values| match values.len() {
+                0 => Ok(Integer::from(0).into()),
+                1 => Ok(values[0].clone()),
                 _ => {
                     let mut acc = match &values[0] {
                         Value::Integer(i) => i.clone(),
-                        _ => return Value::Nil,
+                        _ => return Err(env.error("wrong-type-arg", None))
                     };
 
                     for v in values.iter().skip(1) {
                         match v {
                             Value::Integer(i) => acc.add_assign(i.clone()),
-                            _ => return Value::Nil,
+                        _ => return Err(env.error("wrong-type-arg", None))
                         }
                     }
 
-                    acc.into()
+                    Ok(acc.into())
                 }
             });
 
@@ -220,26 +220,26 @@ impl Default for Environment {
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
             Some("If called with one argument Z1, -Z1 returned. Otherwise the sum of all but the first \
                 argument are subtracted from the first argument."),
-            |_env, values| match values.len() {
-                0 => Value::Nil,
+            |env, values| match values.len() {
+                0 => unreachable!(),
                 1 => match &values[0] {
-                    Value::Integer(i) => i.clone().neg().into(),
-                    _ => Value::Nil,
+                    Value::Integer(i) => Ok(i.clone().neg().into()),
+                    _ => Err(env.error("wrong-type-arg", None)),
                 },
                 _ => {
                     let mut acc = match &values[0] {
                         Value::Integer(i) => i.clone(),
-                        _ => return Value::Nil,
+                        _ => return Err(env.error("wrong-type-arg", None)),
                     };
 
                     for v in values.iter().skip(1) {
                         match v {
                             Value::Integer(i) => acc.sub_assign(i.clone()),
-                            _ => return Value::Nil,
+                            _ => return Err(env.error("wrong-type-arg", None)),
                         }
                     }
 
-                    acc.into()
+                    Ok(acc.into())
                 }
             },
         );
@@ -257,7 +257,7 @@ impl Default for Environment {
                         print!(" {v}");
                     }
                 }
-                Value::Nil
+                Ok(Value::Nil)
             },
         );
 
@@ -275,7 +275,7 @@ impl Default for Environment {
                     }
                 }
                 println!();
-                Value::Nil
+                Ok(Value::Nil)
             },
         );
 
@@ -284,7 +284,7 @@ impl Default for Environment {
             "list",
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
             Some("Create a list."),
-            |_env, values| values.into(),
+            |_env, values| Ok(values.into()),
         );
 
         define(
@@ -292,9 +292,9 @@ impl Default for Environment {
             "string->symbol",
             Parameters::Exact(1),
             Some("Return the symbol whose name is STRING."),
-            |_env, values| match values[0] {
-                Value::String(ref s) => Value::Symbol(Symbol::Name(s.clone())),
-                _ => Value::Nil,
+            |env, values| match values[0] {
+                Value::String(ref s) => Ok(Value::Symbol(Symbol::Name(s.clone()))),
+                _ => Err(env.error("wrong-type-arg", None)),
             },
         );
 
@@ -303,7 +303,7 @@ impl Default for Environment {
             "current-environment",
             Parameters::Exact(0),
             Some("Return the current environment."),
-            |env, _| Value::Environment(env),
+            |env, _| Ok(Value::Environment(env)),
         );
 
         define(
@@ -311,9 +311,9 @@ impl Default for Environment {
             "eval",
             Parameters::Exact(2),
             Some("Evaluate expression in the given environment."),
-            |_env, values| match (&values[0], &values[1]) {
+            |env, values| match (&values[0], &values[1]) {
                 (Value::List(_), Value::Environment(env)) => values[0].eval(env.clone()),
-                _ => Value::Nil,
+                _ => Err(env.error("wrong-type-arg", None)),
             },
         );
 
@@ -330,11 +330,11 @@ impl Default for Environment {
             "procedure-documentation",
             Parameters::Exact(1),
             Some("Return the documentation string associated with `proc'."),
-            |_env, values| {
+            |env, values| {
                 if let Value::Lambda(ref p) = values[0] {
-                    p.doc().into()
+                    Ok(p.doc().into())
                 } else {
-                    Value::Nil
+                    Err(env.error("wrong-type-arg", None))
                 }
             },
         );
@@ -344,11 +344,11 @@ impl Default for Environment {
             "procedure-name",
             Parameters::Exact(1),
             Some("Return the name of the procedure."),
-            |_env, values| {
+            |env, values| {
                 if let Value::Lambda(ref p) = values[0] {
-                    p.name().into()
+                    Ok(p.name().into())
                 } else {
-                    Value::Nil
+                    Err(env.error("wrong-type-arg", None))
                 }
             },
         );
@@ -399,7 +399,8 @@ mod tests {
             env.get(Symbol::Name("+".into()))
                 .unwrap()
                 .get()
-                .apply(env.clone(), vector![]),
+                .apply(env.clone(), vector![])
+                .unwrap(),
             Integer::from(0).into()
         );
 
@@ -407,7 +408,8 @@ mod tests {
             env.get(Symbol::Name("+".into()))
                 .unwrap()
                 .get()
-                .apply(env.clone(), vector![Integer::from(69).into()]),
+                .apply(env.clone(), vector![Integer::from(69).into()])
+                .unwrap(),
             Integer::from(69).into()
         );
 
@@ -415,25 +417,32 @@ mod tests {
             env.get(Symbol::Name("+".into()))
                 .unwrap()
                 .get()
-                .apply(env.clone(), vector![Value::String("ciao".into())]),
+                .apply(env.clone(), vector![Value::String("ciao".into())])
+                .unwrap(),
             Value::String("ciao".into())
         );
 
         assert_eq!(
-            env.get(Symbol::Name("+".into())).unwrap().get().apply(
-                env.clone(),
-                vector![Integer::from(34).into(), Integer::from(35).into()]
-            ),
+            env.get(Symbol::Name("+".into()))
+                .unwrap()
+                .get()
+                .apply(
+                    env.clone(),
+                    vector![Integer::from(34).into(), Integer::from(35).into()]
+                )
+                .unwrap(),
             Integer::from(69).into()
         );
 
-        assert_eq!(
-            env.get(Symbol::Name("+".into())).unwrap().get().apply(
+        assert!(env
+            .get(Symbol::Name("+".into()))
+            .unwrap()
+            .get()
+            .apply(
                 env,
                 vector![Integer::from(69).into(), Value::String("ciao".into())]
-            ),
-            Value::Nil
-        );
+            )
+            .is_err());
     }
 
     #[test]
@@ -445,7 +454,8 @@ mod tests {
             env.get(Symbol::Name("list".into()))
                 .unwrap()
                 .get()
-                .apply(env, l.clone()),
+                .apply(env, l.clone())
+                .unwrap(),
             l.into()
         );
     }

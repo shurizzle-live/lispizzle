@@ -1,11 +1,11 @@
 use std::fmt;
 
-use im_rc::Vector;
+use im_rc::{vector, Vector};
 use rug::Integer;
 
 use crate::{
     util::{print_list_debug, print_list_display},
-    Callable, Environment, Lambda, Str, Symbol, Var,
+    Callable, Environment, Error, Lambda, Str, Symbol, Var,
 };
 
 #[derive(Clone)]
@@ -21,6 +21,7 @@ pub enum Value {
     List(Vector<Value>),
     Var(Var),
     Environment(Environment),
+    Error(Error),
 }
 
 impl Value {
@@ -69,15 +70,26 @@ impl Value {
         matches!(self, Value::List(_))
     }
 
-    pub fn apply(&self, env: Environment, args: Vector<Value>) -> Value {
+    #[inline]
+    pub fn is_error(&self) -> bool {
+        matches!(self, Value::Error(_))
+    }
+
+    pub fn apply(&self, env: Environment, args: Vector<Value>) -> Result<Value, Error> {
         match self {
-            Self::Lambda(l) => l.call(env, args),
+            Self::Lambda(l) => {
+                if l.min_arity() > args.len() {
+                    Err(env.error("wrong-number-of-args", None))
+                } else {
+                    l.call(env, args)
+                }
+            }
             Self::Var(v) => v.get().apply(env, args),
-            _ => Self::Nil,
+            _ => Err(env.error("wrong-type-arg", None)),
         }
     }
 
-    pub fn eval(&self, env: Environment) -> Value {
+    pub fn eval(&self, env: Environment) -> Result<Value, Error> {
         match self {
             Self::Unspecified
             | Self::Nil
@@ -87,16 +99,22 @@ impl Value {
             | Self::String(_)
             | Self::Lambda(_)
             | Self::Var(_)
-            | Self::Environment(_) => self.clone(),
-            Self::Symbol(sym) => env.get(sym).map(|v| v.get()).unwrap_or(Self::Nil),
+            | Self::Environment(_)
+            | Self::Error(_) => Ok(self.clone()),
+            Self::Symbol(sym) => env.get(sym).map(|v| v.get()).ok_or_else(|| {
+                env.error("unbound-variable", Some(vector![Self::Symbol(sym.clone())]))
+            }),
             Self::List(l) => {
                 if let Some(first) = l.head() {
-                    first.eval(env.clone()).apply(
+                    first.eval(env.clone())?.apply(
                         env.clone(),
-                        l.iter().skip(1).map(|v| v.eval(env.clone())).collect(),
+                        l.iter()
+                            .skip(1)
+                            .map(|v| v.eval(env.clone()))
+                            .collect::<Result<Vector<_>, Error>>()?,
                     )
                 } else {
-                    panic!("cannot eval empty list");
+                    Err(env.error("syntax-error", None))
                 }
             }
         }
@@ -294,6 +312,7 @@ impl fmt::Debug for Value {
             Self::List(l) => print_list_debug(f, l.iter(), "(", ")"),
             Self::Var(v) => fmt::Debug::fmt(v, f),
             Self::Environment(e) => fmt::Debug::fmt(e, f),
+            Self::Error(e) => fmt::Debug::fmt(e, f),
         }
     }
 }
@@ -318,6 +337,7 @@ impl fmt::Display for Value {
             Self::List(l) => print_list_display(f, l.iter(), "(", ")"),
             Self::Var(v) => fmt::Display::fmt(v, f),
             Self::Environment(v) => fmt::Display::fmt(v, f),
+            Self::Error(v) => fmt::Display::fmt(v, f),
         }
     }
 }

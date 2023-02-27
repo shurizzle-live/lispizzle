@@ -1,7 +1,10 @@
+use std::fmt;
+
 use im_rc::Vector;
 
 use crate::{BackTrace, Str, Value};
 
+#[derive(Debug, Clone)]
 pub struct Error {
     name: Str,
     args: Option<Vector<Value>>,
@@ -27,5 +30,11 @@ impl Error {
     #[inline]
     pub fn backtrace(&self) -> BackTrace {
         self.trace.clone()
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
     }
 }

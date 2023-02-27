@@ -2,10 +2,10 @@ use std::{fmt, num::NonZeroUsize, rc::Rc};
 
 use im_rc::Vector;
 
-use crate::{Environment, Str, Value};
+use crate::{Environment, Error, Str, Value};
 
 pub trait Callable {
-    fn call(&self, env: Environment, parameters: Vector<Value>) -> Value;
+    fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error>;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -14,20 +14,21 @@ pub enum Parameters<T1, T2> {
     Variadic(T2),
 }
 
-struct NativeFnRepr<T: (Fn(Environment, Vector<Value>) -> Value) + ?Sized + 'static> {
+struct NativeFnRepr<T: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + ?Sized + 'static>
+{
     parameters: Parameters<usize, NonZeroUsize>,
     doc: Option<Str>,
     fun: T,
 }
 
 #[allow(clippy::type_complexity)]
-impl<F: (Fn(Environment, Vector<Value>) -> Value) + 'static> NativeFnRepr<F> {
+impl<F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static> NativeFnRepr<F> {
     #[inline]
     pub fn new(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<Str>,
         fun: F,
-    ) -> Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Value>> {
+    ) -> Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>>> {
         Rc::new(NativeFnRepr {
             parameters,
             doc,
@@ -36,15 +37,30 @@ impl<F: (Fn(Environment, Vector<Value>) -> Value) + 'static> NativeFnRepr<F> {
     }
 }
 
-impl Callable for Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Value>> {
+impl NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>> {
+    #[inline]
+    pub fn doc(&self) -> Option<Str> {
+        self.doc.clone()
+    }
+
+    #[inline]
+    pub fn min_arity(&self) -> usize {
+        match self.parameters {
+            Parameters::Exact(n) => n,
+            Parameters::Variadic(n) => n.get() - 1,
+        }
+    }
+}
+
+impl Callable for Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>>> {
     #[inline(always)]
-    fn call(&self, env: Environment, parameters: Vector<Value>) -> Value {
+    fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
         (self.fun)(env, parameters)
     }
 }
 
 #[allow(clippy::type_complexity)]
-struct NativeFn(Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Value>>);
+struct NativeFn(Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>>>);
 
 fn fmt_parameters<T: fmt::Display, I: IntoIterator<Item = T>>(
     f: &mut fmt::Formatter<'_>,
@@ -83,7 +99,7 @@ fn fmt_parameters<T: fmt::Display, I: IntoIterator<Item = T>>(
 
 impl NativeFn {
     #[inline]
-    fn new<F: (Fn(Environment, Vector<Value>) -> Value) + 'static>(
+    fn new<F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static>(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<Str>,
         fun: F,
@@ -102,7 +118,12 @@ impl NativeFn {
 
     #[inline]
     pub fn doc(&self) -> Option<Str> {
-        self.0.doc.clone()
+        self.0.doc()
+    }
+
+    #[inline]
+    pub fn min_arity(&self) -> usize {
+        self.0.min_arity()
     }
 }
 
@@ -117,7 +138,7 @@ impl Eq for NativeFn {}
 
 impl Callable for NativeFn {
     #[inline]
-    fn call(&self, env: Environment, parameters: Vector<Value>) -> Value {
+    fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
         self.0.call(env, parameters)
     }
 }
@@ -136,7 +157,7 @@ enum LambdaRepr {
 
 impl LambdaRepr {
     #[inline]
-    fn from_native<F: (Fn(Environment, Vector<Value>) -> Value) + 'static>(
+    fn from_native<F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static>(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<Str>,
         fun: F,
@@ -150,11 +171,18 @@ impl LambdaRepr {
             Self::Native(ref f) => f.doc(),
         }
     }
+
+    #[inline]
+    pub fn min_arity(&self) -> usize {
+        match self {
+            Self::Native(ref f) => f.min_arity(),
+        }
+    }
 }
 
 impl Callable for LambdaRepr {
     #[inline]
-    fn call(&self, env: Environment, parameters: Vector<Value>) -> Value {
+    fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
         match self {
             Self::Native(f) => f.call(env, parameters),
         }
@@ -179,7 +207,7 @@ pub struct Lambda {
 
 impl Lambda {
     #[inline]
-    pub fn from_native<F: (Fn(Environment, Vector<Value>) -> Value) + 'static>(
+    pub fn from_native<F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static>(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<Str>,
         fun: F,
@@ -210,6 +238,11 @@ impl Lambda {
         self.repr.doc()
     }
 
+    #[inline]
+    pub fn min_arity(&self) -> usize {
+        self.repr.min_arity()
+    }
+
     fn _addr(&self) -> usize {
         match &self.repr {
             LambdaRepr::Native(l) => &*l.0 as *const _ as *const u8 as usize,
@@ -225,7 +258,7 @@ impl Lambda {
 
 impl Callable for Lambda {
     #[inline]
-    fn call(&self, env: Environment, parameters: Vector<Value>) -> Value {
+    fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
         self.repr.call(env, parameters)
     }
 }
@@ -263,20 +296,20 @@ mod tests {
     use im_rc::{vector, Vector};
     use rug::Integer;
 
-    use crate::{Callable, Environment, Lambda, Parameters, Value};
+    use crate::{Callable, Environment, Error, Lambda, Parameters, Value};
 
-    fn add(_env: Environment, pars: Vector<Value>) -> Value {
+    fn add(env: Environment, pars: Vector<Value>) -> Result<Value, Error> {
         let mut res = Integer::from(0);
 
         for e in pars {
             if let Value::Integer(i) = e {
                 res.add_assign(i);
             } else {
-                unimplemented!()
+                return Err(env.error("wrong-type-arg", None));
             }
         }
 
-        res.into()
+        Ok(res.into())
     }
 
     #[test]
@@ -288,14 +321,21 @@ mod tests {
             add,
         );
         assert!(lambda == lambda);
-        assert_eq!(lambda.call(env.clone(), vector![]), 0.into());
-        assert_eq!(lambda.call(env.clone(), vector![1.into()]), 1.into());
+        assert_eq!(lambda.call(env.clone(), vector![]).unwrap(), 0.into());
         assert_eq!(
-            lambda.call(env.clone(), vector![1.into(), 2.into()]),
+            lambda.call(env.clone(), vector![1.into()]).unwrap(),
+            1.into()
+        );
+        assert_eq!(
+            lambda
+                .call(env.clone(), vector![1.into(), 2.into()])
+                .unwrap(),
             3.into()
         );
         assert_eq!(
-            lambda.call(env, vector![1.into(), 2.into(), 3.into()]),
+            lambda
+                .call(env, vector![1.into(), 2.into(), 3.into()])
+                .unwrap(),
             6.into()
         );
     }

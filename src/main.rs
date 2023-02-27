@@ -6,7 +6,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env = Environment::default();
     let code = parse_from_file("examples/1.zle".as_ref())?;
     for exp in code {
-        exp.eval(env.clone());
+        if let Err(err) = exp.eval(env.clone()) {
+            println!("{:#?}", err);
+            return Ok(());
+        }
     }
     Ok(())
 }
