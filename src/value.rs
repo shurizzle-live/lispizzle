@@ -106,6 +106,16 @@ impl Value {
             }),
             Self::List(l) => {
                 if let Some(first) = l.head() {
+                    if let Self::Symbol(Symbol::Name(s)) = first {
+                        if s == "quote" {
+                            return if l.len() != 2 {
+                                Err(env.error("syntax-error", None))
+                            } else {
+                                Ok(l[1].clone())
+                            };
+                        }
+                    }
+
                     first.eval(env.clone())?.apply(
                         env.clone(),
                         l.iter()
