@@ -178,7 +178,7 @@ impl Default for Environment {
         );
 
         me.define(
-            Symbol::Name("println".into()),
+            Symbol::Name("print".into()),
             Lambda::from_native(
                 Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
                 Some("Print arguments".into()),
@@ -222,6 +222,52 @@ impl Default for Environment {
                 Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
                 Some("Create a list.".into()),
                 |_env, values| values.into(),
+            )
+            .into(),
+        );
+
+        me.define(
+            Symbol::Name("string->symbol".into()),
+            Lambda::from_native(
+                Parameters::Exact(1),
+                Some("Return the symbol whose name is STRING.".into()),
+                |_env, values| match values[0] {
+                    Value::String(ref s) => Value::Symbol(Symbol::Name(s.clone())),
+                    _ => Value::Nil,
+                },
+            )
+            .into(),
+        );
+
+        me.define(
+            Symbol::Name("current-environment".into()),
+            Lambda::from_native(
+                Parameters::Exact(0),
+                Some("Return the current environment.".into()),
+                |env, _| Value::Environment(env),
+            )
+            .into(),
+        );
+
+        me.define(
+            Symbol::Name("eval".into()),
+            Lambda::from_native(
+                Parameters::Exact(2),
+                Some("Evaluate expression in the given environment.".into()),
+                |_env, values| match (&values[0], &values[1]) {
+                    (Value::List(_), Value::Environment(env)) => values[0].eval(env.clone()),
+                    _ => Value::Nil,
+                },
+            )
+            .into(),
+        );
+
+        me.define(
+            Symbol::Name("primitive-eval".into()),
+            Lambda::from_native(
+                Parameters::Exact(1),
+                Some("Evaluate expression in the current environment.".into()),
+                |env, values| values[0].eval(env),
             )
             .into(),
         );
