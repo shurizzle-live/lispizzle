@@ -3,4 +3,7 @@
 (print (list (string->symbol "+") (list (string->symbol "-") 1 2) 3))
 (println " =" (primitive-eval (list (string->symbol "+") (list (string->symbol "-") 1 2) 3)))
 
-(print "1 - 2 + 3 =" (eval (list (string->symbol "+") (list (string->symbol "-") 1 2) 3) (current-environment)))
+(println "1 - 2 + 3 =" (eval (list (string->symbol "+") (list (string->symbol "-") 1 2) 3) (current-environment)))
+
+(print       (procedure-name +))
+(println ":" (procedure-documentation +))

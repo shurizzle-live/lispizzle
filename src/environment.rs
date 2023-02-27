@@ -7,7 +7,8 @@ use std::{
     rc::Rc,
 };
 
-use im_rc::HashMap;
+use ecow::EcoString;
+use im_rc::{HashMap, Vector};
 
 use crate::{Symbol, Value, Var};
 
@@ -118,158 +119,181 @@ impl Default for Environment {
 
         let me = Self::new();
 
-        me.define(
-            Symbol::Name("+".into()),
-            Lambda::from_native(
-                Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
-                Some("plus.".into()),
-                |_env, values| match values.len() {
-                    0 => Integer::from(0).into(),
-                    1 => values[0].clone(),
-                    _ => {
-                        let mut acc = match &values[0] {
-                            Value::Integer(i) => i.clone(),
+        fn define<F: (Fn(Environment, Vector<Value>) -> Value) + 'static>(
+            env: &Environment,
+            name: &str,
+            ps: Parameters<usize, NonZeroUsize>,
+            doc: Option<&str>,
+            f: F,
+        ) {
+            let mut lambda = Lambda::from_native(ps, doc.map(|s| s.into()), f);
+            let name: EcoString = name.into();
+            lambda.set_name(name.clone());
+            env.define(Symbol::Name(name), lambda.into());
+        }
+
+        define(
+            &me,
+            "+", 
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+            Some("Return the sum of all parameter values. Return 0 if called without any parameters."),
+            |_env, values| match values.len() {
+                0 => Integer::from(0).into(),
+                1 => values[0].clone(),
+                _ => {
+                    let mut acc = match &values[0] {
+                        Value::Integer(i) => i.clone(),
+                        _ => return Value::Nil,
+                    };
+
+                    for v in values.iter().skip(1) {
+                        match v {
+                            Value::Integer(i) => acc.add_assign(i.clone()),
                             _ => return Value::Nil,
-                        };
-
-                        for v in values.iter().skip(1) {
-                            match v {
-                                Value::Integer(i) => acc.add_assign(i.clone()),
-                                _ => return Value::Nil,
-                            }
-                        }
-
-                        acc.into()
-                    }
-                },
-            )
-            .into(),
-        );
-
-        me.define(
-            Symbol::Name("-".into()),
-            Lambda::from_native(
-                Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
-                Some("minus.".into()),
-                |_env, values| match values.len() {
-                    0 => Value::Nil,
-                    1 => match &values[0] {
-                        Value::Integer(i) => i.clone().neg().into(),
-                        _ => Value::Nil,
-                    },
-                    _ => {
-                        let mut acc = match &values[0] {
-                            Value::Integer(i) => i.clone(),
-                            _ => return Value::Nil,
-                        };
-
-                        for v in values.iter().skip(1) {
-                            match v {
-                                Value::Integer(i) => acc.sub_assign(i.clone()),
-                                _ => return Value::Nil,
-                            }
-                        }
-
-                        acc.into()
-                    }
-                },
-            )
-            .into(),
-        );
-
-        me.define(
-            Symbol::Name("print".into()),
-            Lambda::from_native(
-                Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
-                Some("Print arguments".into()),
-                |_env, values| {
-                    for (i, v) in values.iter().enumerate() {
-                        if i == 0 {
-                            print!("{v}");
-                        } else {
-                            print!(" {v}");
                         }
                     }
-                    Value::Nil
-                },
-            )
-            .into(),
-        );
 
-        me.define(
-            Symbol::Name("println".into()),
-            Lambda::from_native(
-                Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
-                Some("Print arguments followed by a newline".into()),
-                |_env, values| {
-                    for (i, v) in values.iter().enumerate() {
-                        if i == 0 {
-                            print!("{v}");
-                        } else {
-                            print!(" {v}");
-                        }
-                    }
-                    println!();
-                    Value::Nil
-                },
-            )
-            .into(),
-        );
+                    acc.into()
+                }
+            });
 
-        me.define(
-            Symbol::Name("list".into()),
-            Lambda::from_native(
-                Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
-                Some("Create a list.".into()),
-                |_env, values| values.into(),
-            )
-            .into(),
-        );
-
-        me.define(
-            Symbol::Name("string->symbol".into()),
-            Lambda::from_native(
-                Parameters::Exact(1),
-                Some("Return the symbol whose name is STRING.".into()),
-                |_env, values| match values[0] {
-                    Value::String(ref s) => Value::Symbol(Symbol::Name(s.clone())),
+        define(
+            &me,
+            "-",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+            Some("If called with one argument Z1, -Z1 returned. Otherwise the sum of all but the first \
+                argument are subtracted from the first argument."),
+            |_env, values| match values.len() {
+                0 => Value::Nil,
+                1 => match &values[0] {
+                    Value::Integer(i) => i.clone().neg().into(),
                     _ => Value::Nil,
                 },
-            )
-            .into(),
+                _ => {
+                    let mut acc = match &values[0] {
+                        Value::Integer(i) => i.clone(),
+                        _ => return Value::Nil,
+                    };
+
+                    for v in values.iter().skip(1) {
+                        match v {
+                            Value::Integer(i) => acc.sub_assign(i.clone()),
+                            _ => return Value::Nil,
+                        }
+                    }
+
+                    acc.into()
+                }
+            },
         );
 
-        me.define(
-            Symbol::Name("current-environment".into()),
-            Lambda::from_native(
-                Parameters::Exact(0),
-                Some("Return the current environment.".into()),
-                |env, _| Value::Environment(env),
-            )
-            .into(),
+        define(
+            &me,
+            "print",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+            Some("Print arguments"),
+            |_env, values| {
+                for (i, v) in values.iter().enumerate() {
+                    if i == 0 {
+                        print!("{v}");
+                    } else {
+                        print!(" {v}");
+                    }
+                }
+                Value::Nil
+            },
         );
 
-        me.define(
-            Symbol::Name("eval".into()),
-            Lambda::from_native(
-                Parameters::Exact(2),
-                Some("Evaluate expression in the given environment.".into()),
-                |_env, values| match (&values[0], &values[1]) {
-                    (Value::List(_), Value::Environment(env)) => values[0].eval(env.clone()),
-                    _ => Value::Nil,
-                },
-            )
-            .into(),
+        define(
+            &me,
+            "println",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+            Some("Print arguments followed by a newline"),
+            |_env, values| {
+                for (i, v) in values.iter().enumerate() {
+                    if i == 0 {
+                        print!("{v}");
+                    } else {
+                        print!(" {v}");
+                    }
+                }
+                println!();
+                Value::Nil
+            },
         );
 
-        me.define(
-            Symbol::Name("primitive-eval".into()),
-            Lambda::from_native(
-                Parameters::Exact(1),
-                Some("Evaluate expression in the current environment.".into()),
-                |env, values| values[0].eval(env),
-            )
-            .into(),
+        define(
+            &me,
+            "list",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+            Some("Create a list."),
+            |_env, values| values.into(),
+        );
+
+        define(
+            &me,
+            "string->symbol",
+            Parameters::Exact(1),
+            Some("Return the symbol whose name is STRING."),
+            |_env, values| match values[0] {
+                Value::String(ref s) => Value::Symbol(Symbol::Name(s.clone())),
+                _ => Value::Nil,
+            },
+        );
+
+        define(
+            &me,
+            "current-environment",
+            Parameters::Exact(0),
+            Some("Return the current environment."),
+            |env, _| Value::Environment(env),
+        );
+
+        define(
+            &me,
+            "eval",
+            Parameters::Exact(2),
+            Some("Evaluate expression in the given environment."),
+            |_env, values| match (&values[0], &values[1]) {
+                (Value::List(_), Value::Environment(env)) => values[0].eval(env.clone()),
+                _ => Value::Nil,
+            },
+        );
+
+        define(
+            &me,
+            "primitive-eval",
+            Parameters::Exact(1),
+            Some("Evaluate expression in the current environment."),
+            |env, values| values[0].eval(env),
+        );
+
+        define(
+            &me,
+            "procedure-documentation",
+            Parameters::Exact(1),
+            Some("Return the documentation string associated with `proc'."),
+            |_env, values| {
+                if let Value::Lambda(ref p) = values[0] {
+                    p.doc().into()
+                } else {
+                    Value::Nil
+                }
+            },
+        );
+
+        define(
+            &me,
+            "procedure-name",
+            Parameters::Exact(1),
+            Some("Return the name of the procedure."),
+            |_env, values| {
+                if let Value::Lambda(ref p) = values[0] {
+                    p.name().into()
+                } else {
+                    Value::Nil
+                }
+            },
         );
 
         me

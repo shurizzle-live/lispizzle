@@ -93,7 +93,6 @@ impl NativeFn {
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // #<procedure + (#:optional _ _ . _)>
         match self.0.parameters {
             Parameters::Exact(n) => fmt_parameters(f, false, n, ["_"].into_iter().cycle().take(n)),
             Parameters::Variadic(n) => {
@@ -175,7 +174,7 @@ impl Eq for LambdaRepr {}
 
 #[derive(Clone)]
 pub struct Lambda {
-    name: Option<Box<str>>,
+    name: Option<EcoString>,
     repr: LambdaRepr,
 }
 
@@ -197,7 +196,7 @@ impl Lambda {
         self.name.as_ref().map(|s| s.as_ref())
     }
 
-    pub fn set_name<I: Into<Box<str>>>(&mut self, name: I) {
+    pub fn set_name<I: Into<EcoString>>(&mut self, name: I) {
         let name = name.into();
         self.name = Some(name);
     }
