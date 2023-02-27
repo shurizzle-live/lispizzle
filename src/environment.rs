@@ -7,15 +7,15 @@ use std::{
     rc::Rc,
 };
 
-use ecow::EcoString;
 use im_rc::{HashMap, Vector};
 
-use crate::{Symbol, Value, Var};
+use crate::{BackTrace, Error, Str, Symbol, Trace, Value, Var};
 
 struct EnvironmentRepr {
     parent: Option<Rc<RefCell<EnvironmentRepr>>>,
     gensym: usize,
     storage: HashMap<Symbol, Var>,
+    trace: Option<Trace>,
 }
 
 impl EnvironmentRepr {
@@ -68,6 +68,27 @@ impl EnvironmentRepr {
         self.gensym += 1;
         sym
     }
+
+    #[inline]
+    pub fn trace(&self) -> Option<Trace> {
+        self.trace.clone()
+    }
+
+    fn write_trace(&self, bt: &mut BackTrace) {
+        if let Some(trace) = self.trace() {
+            bt.push_back(trace);
+        }
+        if let Some(parent) = self.parent() {
+            parent.write_trace(bt);
+        }
+    }
+
+    #[inline]
+    pub fn backtrace(&self) -> BackTrace {
+        let mut backtrace = BackTrace::new();
+        self.write_trace(&mut backtrace);
+        backtrace
+    }
 }
 
 #[derive(Clone)]
@@ -79,15 +100,27 @@ impl Environment {
             parent: None,
             gensym: 0,
             storage: HashMap::new(),
+            trace: Some(Trace::main()),
         })))
     }
 
-    pub fn child(&self) -> Self {
+    fn _child(&self, trace: Option<Trace>) -> Self {
         Self(Rc::new(RefCell::new(EnvironmentRepr {
             parent: Some(Rc::clone(&self.0)),
             gensym: 0,
             storage: HashMap::new(),
+            trace,
         })))
+    }
+
+    #[inline]
+    pub fn child(&self) -> Self {
+        self._child(None)
+    }
+
+    #[inline]
+    pub fn with_trace(&self, trace: Trace) -> Self {
+        self._child(Some(trace))
     }
 
     #[inline]
@@ -109,6 +142,26 @@ impl Environment {
     pub fn generate(&self) -> Symbol {
         RefCell::borrow_mut(&*self.0).generate()
     }
+
+    #[inline]
+    pub fn trace(&self) -> Option<Trace> {
+        RefCell::borrow(&*self.0).trace()
+    }
+
+    #[inline]
+    pub fn backtrace(&self) -> BackTrace {
+        RefCell::borrow(&*self.0).backtrace()
+    }
+
+    #[inline]
+    pub fn backtrace_from(&self, bt: &mut BackTrace) {
+        RefCell::borrow(&*self.0).write_trace(bt)
+    }
+
+    #[inline]
+    pub fn error<S: Into<Str>>(&self, name: S, args: Option<Vector<Value>>) -> Error {
+        Error::new(name.into(), args, self.backtrace())
+    }
 }
 
 impl Default for Environment {
@@ -119,15 +172,19 @@ impl Default for Environment {
 
         let me = Self::new();
 
-        fn define<F: (Fn(Environment, Vector<Value>) -> Value) + 'static>(
+        fn define<F, S1, S2>(
             env: &Environment,
-            name: &str,
+            name: S1,
             ps: Parameters<usize, NonZeroUsize>,
-            doc: Option<&str>,
+            doc: Option<S2>,
             f: F,
-        ) {
+        ) where
+            F: (Fn(Environment, Vector<Value>) -> Value) + 'static,
+            S1: Into<Str>,
+            S2: Into<Str>,
+        {
             let mut lambda = Lambda::from_native(ps, doc.map(|s| s.into()), f);
-            let name: EcoString = name.into();
+            let name: Str = name.into();
             lambda.set_name(name.clone());
             env.define(Symbol::Name(name), lambda.into());
         }

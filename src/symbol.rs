@@ -1,16 +1,16 @@
 use std::{fmt, hash::Hash};
 
-use ecow::EcoString;
+use crate::Str;
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub enum Symbol {
-    Name(EcoString),
+    Name(Str),
     Gensym(usize, usize),
 }
 
-impl From<EcoString> for Symbol {
+impl From<Str> for Symbol {
     #[inline]
-    fn from(value: EcoString) -> Self {
+    fn from(value: Str) -> Self {
         Self::Name(value)
     }
 }

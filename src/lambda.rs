@@ -1,9 +1,8 @@
 use std::{fmt, num::NonZeroUsize, rc::Rc};
 
-use ecow::EcoString;
 use im_rc::Vector;
 
-use crate::{Environment, Value};
+use crate::{Environment, Str, Value};
 
 pub trait Callable {
     fn call(&self, env: Environment, parameters: Vector<Value>) -> Value;
@@ -17,7 +16,7 @@ pub enum Parameters<T1, T2> {
 
 struct NativeFnRepr<T: (Fn(Environment, Vector<Value>) -> Value) + ?Sized + 'static> {
     parameters: Parameters<usize, NonZeroUsize>,
-    doc: Option<EcoString>,
+    doc: Option<Str>,
     fun: T,
 }
 
@@ -26,7 +25,7 @@ impl<F: (Fn(Environment, Vector<Value>) -> Value) + 'static> NativeFnRepr<F> {
     #[inline]
     pub fn new(
         parameters: Parameters<usize, NonZeroUsize>,
-        doc: Option<EcoString>,
+        doc: Option<Str>,
         fun: F,
     ) -> Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Value>> {
         Rc::new(NativeFnRepr {
@@ -86,7 +85,7 @@ impl NativeFn {
     #[inline]
     fn new<F: (Fn(Environment, Vector<Value>) -> Value) + 'static>(
         parameters: Parameters<usize, NonZeroUsize>,
-        doc: Option<EcoString>,
+        doc: Option<Str>,
         fun: F,
     ) -> Self {
         Self(NativeFnRepr::new(parameters, doc, fun))
@@ -102,7 +101,7 @@ impl NativeFn {
     }
 
     #[inline]
-    pub fn doc(&self) -> Option<EcoString> {
+    pub fn doc(&self) -> Option<Str> {
         self.0.doc.clone()
     }
 }
@@ -139,14 +138,14 @@ impl LambdaRepr {
     #[inline]
     fn from_native<F: (Fn(Environment, Vector<Value>) -> Value) + 'static>(
         parameters: Parameters<usize, NonZeroUsize>,
-        doc: Option<EcoString>,
+        doc: Option<Str>,
         fun: F,
     ) -> Self {
         Self::Native(NativeFn::new(parameters, doc, fun))
     }
 
     #[inline]
-    pub fn doc(&self) -> Option<EcoString> {
+    pub fn doc(&self) -> Option<Str> {
         match self {
             Self::Native(ref f) => f.doc(),
         }
@@ -174,7 +173,7 @@ impl Eq for LambdaRepr {}
 
 #[derive(Clone)]
 pub struct Lambda {
-    name: Option<EcoString>,
+    name: Option<Str>,
     repr: LambdaRepr,
 }
 
@@ -182,7 +181,7 @@ impl Lambda {
     #[inline]
     pub fn from_native<F: (Fn(Environment, Vector<Value>) -> Value) + 'static>(
         parameters: Parameters<usize, NonZeroUsize>,
-        doc: Option<EcoString>,
+        doc: Option<Str>,
         fun: F,
     ) -> Self {
         Self {
@@ -192,11 +191,11 @@ impl Lambda {
     }
 
     #[inline]
-    pub fn name(&self) -> Option<&str> {
-        self.name.as_ref().map(|s| s.as_ref())
+    pub fn name(&self) -> Option<Str> {
+        self.name.clone()
     }
 
-    pub fn set_name<I: Into<EcoString>>(&mut self, name: I) {
+    pub fn set_name<I: Into<Str>>(&mut self, name: I) {
         let name = name.into();
         self.name = Some(name);
     }
@@ -207,7 +206,7 @@ impl Lambda {
     }
 
     #[inline]
-    pub fn doc(&self) -> Option<EcoString> {
+    pub fn doc(&self) -> Option<Str> {
         self.repr.doc()
     }
 

@@ -1,12 +1,11 @@
 use std::fmt;
 
-use ecow::EcoString;
 use im_rc::Vector;
 use rug::Integer;
 
 use crate::{
     util::{print_list_debug, print_list_display},
-    Callable, Environment, Lambda, Symbol, Var,
+    Callable, Environment, Lambda, Str, Symbol, Var,
 };
 
 #[derive(Clone)]
@@ -16,7 +15,7 @@ pub enum Value {
     Boolean(bool),
     Character(char),
     Integer(Integer),
-    String(EcoString),
+    String(Str),
     Symbol(Symbol),
     Lambda(Lambda),
     List(Vector<Value>),
@@ -185,41 +184,18 @@ impl_int_into! {
     isize, usize,
 }
 
-impl From<EcoString> for Value {
+impl From<&'static str> for Value {
     #[inline]
-    fn from(value: EcoString) -> Self {
+    fn from(value: &'static str) -> Self {
+        Self::String(value.into())
+    }
+}
+
+impl From<Str> for Value {
+    #[inline]
+    fn from(value: Str) -> Self {
         Self::String(value)
     }
-}
-
-impl From<&str> for Value {
-    #[inline]
-    fn from(value: &str) -> Self {
-        Self::String(value.into())
-    }
-}
-
-impl From<String> for Value {
-    #[inline]
-    fn from(value: String) -> Self {
-        Self::String(value.into())
-    }
-}
-
-macro_rules! impl_into_str {
-    ($($ty:ty);+ $(;)?) => {
-        $(
-            impl From<$ty> for Value {
-                fn from(value: $ty) -> Self {
-                    (&*value).into()
-                }
-            }
-        )+
-    };
-}
-
-impl_into_str! {
-    &mut str; &EcoString; &mut EcoString; &String; &mut String;
 }
 
 impl From<Lambda> for Value {
@@ -348,7 +324,7 @@ impl fmt::Display for Value {
 
 #[cfg(test)]
 mod tests {
-    use crate::Value;
+    use crate::{Str, Value};
     use rug::Integer;
 
     #[test]
@@ -357,7 +333,7 @@ mod tests {
         assert_eq!(Value::from(1u32), Value::Integer(Integer::from(1)));
         assert_eq!(Value::from(false), Value::Boolean(false));
         assert_eq!(Value::from(true), Value::Boolean(true));
-        assert_eq!(Value::from("test"), Value::String("test".into()));
+        assert_eq!(Value::from(Str::from("test")), Value::String("test".into()));
     }
 
     #[test]

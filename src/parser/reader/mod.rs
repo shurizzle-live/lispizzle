@@ -11,7 +11,7 @@ use phf::phf_map;
 
 use rug::{Complete, Integer};
 
-use crate::{Symbol, Value};
+use crate::{Str, Symbol, Value};
 
 pub use input::Input;
 
@@ -209,7 +209,9 @@ fn symbol_or_integer(i: Input<'_>) -> Result<Value> {
             .complete()
             .into())
     } else {
-        i.ok(Value::Symbol(Symbol::Name(parsed.as_str().into())))
+        i.ok(Value::Symbol(Symbol::Name(
+            EcoString::from(parsed.as_str()).into(),
+        )))
     }
 }
 
@@ -302,7 +304,7 @@ fn string(i: Input<'_>) -> Result<Value> {
                         escaping = true;
                     }
                     '"' => {
-                        return i.set_needs_ws().ok(res.into());
+                        return i.set_needs_ws().ok(Str::from(res).into());
                     }
                     _ => {
                         res.push(c);
