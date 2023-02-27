@@ -102,6 +102,10 @@ impl Value {
             }
         }
     }
+
+    pub fn to_bool(&self) -> bool {
+        !matches!(self, &Self::Boolean(false) | &Self::Nil)
+    }
 }
 
 impl PartialEq for Value {
