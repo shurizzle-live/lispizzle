@@ -14,15 +14,25 @@ pub fn transform(env: Environment, name: Str, args: Vector<Value>) -> Option<Res
     }
 }
 
-fn quote(env: Environment, args: Vector<Value>) -> Result<Value, Error> {
+#[inline(always)]
+fn unshift(args: &mut Vector<Value>) -> Value {
+    unsafe { args.pop_front().unwrap_unchecked() }
+}
+
+#[inline(always)]
+fn grab(args: &mut Vector<Value>, n: usize) -> Value {
+    args.remove(n)
+}
+
+fn quote(env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() == 1 {
-        Ok(args[0].clone())
+        Ok(unshift(&mut args))
     } else {
         Err(env.error("syntax-error", None))
     }
 }
 
-fn quasiquote(env: Environment, args: Vector<Value>) -> Result<Value, Error> {
+fn quasiquote(env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() != 1 {
         return Err(env.error("syntax-error", None));
     }
@@ -37,13 +47,13 @@ fn quasiquote(env: Environment, args: Vector<Value>) -> Result<Value, Error> {
             if let Some(Value::Symbol(Symbol::Name(name))) = list.get(0) {
                 if name == "unquote" {
                     return if list.len() == 2 {
-                        list[1].clone().eval(env).map(Res::Value)
+                        grab(&mut list, 1).eval(env).map(Res::Value)
                     } else {
                         Err(env.error("syntax-error", None))
                     };
                 } else if name == "unquote-splicing" {
                     return if list.len() == 2 {
-                        list[1].clone().eval(env).map(|x| {
+                        grab(&mut list, 1).eval(env).map(|x| {
                             if let Value::List(l) = x {
                                 Res::Splice(l)
                             } else {
@@ -80,24 +90,24 @@ fn quasiquote(env: Environment, args: Vector<Value>) -> Result<Value, Error> {
         }
     }
 
-    match scan(env.clone(), args[0].clone())? {
+    match scan(env.clone(), unshift(&mut args))? {
         Res::Value(v) => Ok(v),
         _ => Err(env.error("syntax-error", None)),
     }
 }
 
-fn iff(env: Environment, args: Vector<Value>) -> Result<Value, Error> {
+fn iff(env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() == 2 {
-        if args[0].clone().eval(env.clone())?.to_bool() {
-            args[1].clone().eval(env)
+        if unshift(&mut args).eval(env.clone())?.to_bool() {
+            unshift(&mut args).eval(env)
         } else {
             Ok(Value::Unspecified)
         }
     } else if args.len() == 3 {
-        if args[0].clone().eval(env.clone())?.to_bool() {
-            args[1].clone().eval(env)
+        if unshift(&mut args).eval(env.clone())?.to_bool() {
+            grab(&mut args, 0).eval(env)
         } else {
-            args[2].clone().eval(env)
+            grab(&mut args, 1).eval(env)
         }
     } else {
         Err(env.error("syntax-error", None))
@@ -106,13 +116,13 @@ fn iff(env: Environment, args: Vector<Value>) -> Result<Value, Error> {
 
 fn set_em_(env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() == 2 {
-        let key = if let Value::Symbol(s) = unsafe { args.pop_front().unwrap_unchecked() } {
+        let key = if let Value::Symbol(s) = unshift(&mut args) {
             s
         } else {
             return Err(env.error("syntax-error", None));
         };
 
-        let value = unsafe { args.pop_front().unwrap_unchecked() }.eval(env.clone())?;
+        let value = unshift(&mut args).eval(env.clone())?;
         if env.set(&key, value).is_ok() {
             Ok(Value::Unspecified)
         } else {
