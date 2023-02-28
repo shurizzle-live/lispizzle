@@ -4,7 +4,7 @@ use std::{
     fmt, mem,
 };
 
-use crate::{Symbol, Var};
+use crate::{Symbol, Value, Var};
 
 #[derive(Clone)]
 pub enum BagRepr<S = RandomState> {
@@ -99,5 +99,18 @@ impl fmt::Debug for Bag {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, f)
+    }
+}
+
+impl<I> FromIterator<I> for Bag
+where
+    I: Into<Symbol>,
+{
+    fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self {
+        let mut bag = Bag::new();
+        for name in iter {
+            bag.insert(name.into(), Var::new(Value::Unspecified));
+        }
+        bag
     }
 }

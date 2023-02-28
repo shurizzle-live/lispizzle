@@ -2,7 +2,7 @@ mod bag;
 
 use std::{
     borrow::Borrow,
-    cell::{Ref, RefCell},
+    cell::{Ref, RefCell, RefMut},
     fmt,
     hash::Hash,
     ops::{AddAssign, Neg, SubAssign},
@@ -28,6 +28,11 @@ impl EnvironmentRepr {
         self.parent.as_ref().map(|r| RefCell::borrow(r))
     }
 
+    #[inline]
+    fn parent_mut(&self) -> Option<RefMut<EnvironmentRepr>> {
+        self.parent.as_ref().map(|r| RefCell::borrow_mut(r))
+    }
+
     pub fn get<B: Borrow<Symbol>>(&self, key: B) -> Option<Var> {
         let key = key.borrow();
 
@@ -51,6 +56,10 @@ impl EnvironmentRepr {
     }
 
     pub fn define<I: Into<Symbol>>(&mut self, key: I, value: Value) {
+        if let Some(mut p) = self.parent_mut() {
+            return p.define(key, value);
+        }
+
         let key = key.into();
 
         if matches!(&key, Symbol::Gensym(env, _) if *env == (self as *const _ as usize))
@@ -105,23 +114,35 @@ impl Environment {
         })))
     }
 
-    fn _child(&self, trace: Option<TraceFrame>) -> Self {
+    fn _child<S, I>(&self, names: I, trace: Option<TraceFrame>) -> Self
+    where
+        S: Into<Symbol>,
+        I: IntoIterator<Item = S>,
+    {
         Self(Rc::new(RefCell::new(EnvironmentRepr {
             parent: Some(Rc::clone(&self.0)),
             gensym: 0,
-            bag: Bag::new(),
+            bag: names.into_iter().collect(),
             trace,
         })))
     }
 
     #[inline]
-    pub fn child(&self) -> Self {
-        self._child(None)
+    pub fn child<S, I>(&self, names: I) -> Self
+    where
+        S: Into<Symbol>,
+        I: IntoIterator<Item = S>,
+    {
+        self._child(names, None)
     }
 
     #[inline]
-    pub fn with_trace(&self, trace: TraceFrame) -> Self {
-        self._child(Some(trace))
+    pub fn with_trace<S, I>(&self, names: I, trace: TraceFrame) -> Self
+    where
+        S: Into<Symbol>,
+        I: IntoIterator<Item = S>,
+    {
+        self._child(names, Some(trace))
     }
 
     #[inline]

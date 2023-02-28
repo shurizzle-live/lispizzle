@@ -2,7 +2,7 @@ use std::{fmt, num::NonZeroUsize, rc::Rc};
 
 use im_rc::Vector;
 
-use crate::{Environment, Error, Str, TraceFrame, Value};
+use crate::{Environment, Error, Str, Symbol, TraceFrame, Value};
 
 pub trait Callable {
     fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error>;
@@ -286,7 +286,8 @@ impl Proc {
 impl Callable for Proc {
     #[inline]
     fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
-        self.repr.call(env.with_trace(self.trace()), parameters)
+        self.repr
+            .call(env.with_trace::<Symbol, _>([], self.trace()), parameters)
     }
 }
 

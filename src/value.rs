@@ -108,7 +108,7 @@ impl Value {
         }
     }
 
-    pub fn eval(&self, env: Environment) -> Result<Value, Error> {
+    pub fn eval(self, env: Environment) -> Result<Value, Error> {
         match self {
             Self::Unspecified
             | Self::Nil
@@ -120,24 +120,30 @@ impl Value {
             | Self::Var(_)
             | Self::Environment(_)
             | Self::Error(_) => Ok(self.clone()),
-            Self::Symbol(sym) => env.get(sym).map(|v| v.get()).ok_or_else(|| {
-                env.error("unbound-variable", Some(vector![Self::Symbol(sym.clone())]))
-            }),
-            Self::List(l) => {
-                if let Some(first) = l.head() {
-                    if let Self::Symbol(Symbol::Name(s)) = first {
-                        if let Some(res) = transform(env.clone(), s.clone(), l.skip(1)) {
+            Self::Symbol(sym) => env
+                .get(sym.clone())
+                .map(|v| v.get())
+                .ok_or_else(|| env.error("unbound-variable", Some(vector![Self::Symbol(sym)]))),
+            Self::List(mut l) => {
+                if let Some(first) = l.pop_front() {
+                    if let Self::Symbol(Symbol::Name(ref s)) = first {
+                        if let Some(res) = transform(env.clone(), s.clone(), l.clone()) {
                             return res;
                         }
                     }
 
-                    first.eval(env.clone())?.apply(
-                        env.clone(),
-                        l.iter()
-                            .skip(1)
+                    let resolved = first.eval(env.clone())?;
+
+                    if resolved.is_macro() {
+                        resolved.apply(env, l)
+                    } else {
+                        let args = l
+                            .into_iter()
                             .map(|v| v.eval(env.clone()))
-                            .collect::<Result<Vector<_>, Error>>()?,
-                    )
+                            .collect::<Result<Vector<_>, Error>>()?;
+
+                        resolved.apply(env, args)
+                    }
                 } else {
                     Err(env.error("syntax-error", None))
                 }
