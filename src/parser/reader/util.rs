@@ -66,14 +66,15 @@ fn _skip_chars_u8(s: &[u8], mut n: usize) -> Option<&[u8]> {
 
     for (off, c) in s.iter().enumerate() {
         if is_boundary(*c) {
+            if n == 0 {
+                return Some(unsafe { s.get_unchecked(off..) });
+            }
+
             n -= 1;
-        }
-        if n == 0 {
-            return Some(unsafe { s.get_unchecked(off..) });
         }
     }
 
-    if n == 1 {
+    if n == 0 {
         Some(unsafe { s.get_unchecked(s.len()..) })
     } else {
         None
@@ -92,14 +93,7 @@ pub fn skip_chars(s: &[u8], mut n: usize) -> Option<&[u8]> {
             (mid, post)
         },
         0 => return Some(s),
-        _ => return _skip_chars_u8(s, n + 1),
-    };
-
-    let rem = if n == usize::MAX {
-        1
-    } else {
-        n += 1;
-        0
+        _ => return _skip_chars_u8(s, n),
     };
 
     while n >= USIZE_BYTES && !haystack.is_empty() {
@@ -117,7 +111,7 @@ pub fn skip_chars(s: &[u8], mut n: usize) -> Option<&[u8]> {
         unsafe { std::slice::from_raw_parts(haystack.as_ptr() as *const u8, len) }
     };
 
-    _skip_chars_u8(rest, n + rem)
+    _skip_chars_u8(rest, n)
 }
 
 #[inline(always)]
@@ -241,17 +235,15 @@ fn _skip_chars_nl_u8(s: &[u8], mut n: usize) -> Option<(&[u8], usize)> {
     let mut count = 0;
     for (off, c) in s.iter().enumerate() {
         if is_boundary(*c) {
-            n -= 1;
-        }
-        match n {
-            0 => return Some((unsafe { s.get_unchecked(off..) }, count)),
-            _ => {
-                count += (*c == NEWLINE) as usize;
+            if n == 0 {
+                return Some((unsafe { s.get_unchecked(off..) }, count));
             }
+            n -= 1;
+            count += (*c == NEWLINE) as usize;
         }
     }
 
-    if n == 1 {
+    if n == 0 {
         Some((unsafe { s.get_unchecked(s.len()..) }, count))
     } else {
         None
@@ -274,14 +266,7 @@ pub fn skip_chars_count_nl(s: &[u8], mut n: usize) -> Option<(&[u8], usize)> {
             (mid, post)
         },
         0 => return Some((s, 0)),
-        _ => return _skip_chars_nl_u8(s, n + 1),
-    };
-
-    let rem = if n == usize::MAX {
-        1
-    } else {
-        n += 1;
-        0
+        _ => return _skip_chars_nl_u8(s, n),
     };
 
     while n >= USIZE_BYTES && !haystack.is_empty() {
@@ -301,7 +286,7 @@ pub fn skip_chars_count_nl(s: &[u8], mut n: usize) -> Option<(&[u8], usize)> {
         unsafe { std::slice::from_raw_parts(haystack.as_ptr() as *const u8, len) }
     };
 
-    _skip_chars_nl_u8(rest, n + rem).map(|(new, c)| (new, nl + c))
+    _skip_chars_nl_u8(rest, n).map(|(new, c)| (new, nl + c))
 }
 
 pub trait SkipChars {
