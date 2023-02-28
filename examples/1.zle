@@ -5,5 +5,10 @@
 
 (println "1 - 2 + 3 =" (eval (quote (+ (- 1 2) 3)) (current-environment)))
 
+(println "`(1 2 ,(+ 1 2)) =" (quasiquote (1 2 (unquote (+ 1 2)))))
+
+(print "`(1 ,@`(2 ,3))")
+(println " =" (quasiquote (1 (unquote-splicing (quasiquote (2 (unquote 3)))))))
+
 (print       (procedure-name +))
 (println ":" (procedure-documentation +))

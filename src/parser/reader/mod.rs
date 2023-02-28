@@ -443,7 +443,7 @@ fn expression(i: Input<'_>) -> Result<Value> {
 
 fn is_eoc(mut i: Input<'_>) -> Result<bool> {
     i = skip_ws(i)?;
-    let res = !i.is_empty();
+    let res = i.is_empty();
     i.ok(res)
 }
 
@@ -451,9 +451,9 @@ pub fn parse(mut i: Input<'_>) -> std::result::Result<Vec<Value>, Error> {
     let mut prog = Vec::new();
 
     while {
-        let ok;
-        (i, ok) = is_eoc(i)?;
-        ok
+        let eoc;
+        (i, eoc) = is_eoc(i)?;
+        !eoc
     } {
         let e;
         (i, e) = list(i)?;

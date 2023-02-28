@@ -4,6 +4,7 @@ use im_rc::{vector, Vector};
 use rug::Integer;
 
 use crate::{
+    special::transform,
     util::{print_list_debug, print_list_display},
     Callable, Environment, Error, Lambda, Str, Symbol, Var,
 };
@@ -107,12 +108,8 @@ impl Value {
             Self::List(l) => {
                 if let Some(first) = l.head() {
                     if let Self::Symbol(Symbol::Name(s)) = first {
-                        if s == "quote" {
-                            return if l.len() != 2 {
-                                Err(env.error("syntax-error", None))
-                            } else {
-                                Ok(l[1].clone())
-                            };
+                        if let Some(res) = transform(env.clone(), s.clone(), l.skip(1)) {
+                            return res;
                         }
                     }
 

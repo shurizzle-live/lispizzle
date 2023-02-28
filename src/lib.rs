@@ -3,6 +3,7 @@ mod environment;
 mod error;
 mod lambda;
 pub mod parser;
+mod special;
 mod string;
 mod symbol;
 mod util;
