@@ -59,6 +59,10 @@ impl Default for Environment {
             define(env, name, ps, doc, true, f)
         }
 
+        fn unshift(v: &mut Vector<Value>) -> Value {
+            unsafe { v.pop_front().unwrap_unchecked() }
+        }
+
         define_fn(
             &me,
             "+", 
@@ -232,11 +236,53 @@ impl Default for Environment {
             Parameters::Exact(2),
             Option::<&str>::None,
             |env, mut values| {
-                let f = unsafe { values.pop_front().unwrap_unchecked() };
-                if let Value::List(args) = unsafe { values.pop_front().unwrap_unchecked() } {
+                let f = unshift(&mut values);
+                if let Value::List(args) = unshift(&mut values) {
                     f.apply(env, args)
                 } else {
                     Err(env.error("wrong-type-arg", None))
+                }
+            },
+        );
+
+        define_fn(
+            &me,
+            "eq?",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+            Option::<&str>::None,
+            |_env, mut values| {
+                if let Some(first) = values.pop_front() {
+                    while let Some(other) = values.pop_front() {
+                        if first.ne(&other) {
+                            return Ok(false.into());
+                        }
+                    }
+                    Ok(true.into())
+                } else {
+                    Ok(true.into())
+                }
+            },
+        );
+
+        define_fn(
+            &me,
+            "=",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+            Option::<&str>::None,
+            |env, mut values| {
+                if let Some(first) = values.pop_front() {
+                    while let Some(other) = values.pop_front() {
+                        if core::mem::discriminant(&first) != core::mem::discriminant(&other) {
+                            return Err(env.error("wrong-type-arg", None));
+                        }
+
+                        if first.ne(&other) {
+                            return Ok(false.into());
+                        }
+                    }
+                    Ok(true.into())
+                } else {
+                    Ok(true.into())
                 }
             },
         );
