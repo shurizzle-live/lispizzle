@@ -1,11 +1,12 @@
 use std::{
     borrow::Borrow,
     collections::{hash_map::RandomState, HashMap},
-    mem,
+    fmt, mem,
 };
 
 use crate::{Symbol, Var};
 
+#[derive(Clone)]
 pub enum BagRepr<S = RandomState> {
     Empty,
     Single(Symbol, Var),
@@ -49,6 +50,20 @@ impl BagRepr {
     }
 }
 
+impl fmt::Debug for BagRepr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut x = f.debug_map();
+
+        match self {
+            Self::Empty => &mut x,
+            Self::Single(ref k, ref v) => x.entry(k, v),
+            Self::Map(ref map) => x.entries(map.iter()),
+        }
+        .finish()
+    }
+}
+
+#[derive(Clone)]
 pub struct Bag<S = RandomState>(BagRepr<S>);
 
 impl Bag {
@@ -77,5 +92,12 @@ impl Default for Bag {
     #[inline]
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl fmt::Debug for Bag {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, f)
     }
 }

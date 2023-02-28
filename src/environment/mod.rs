@@ -13,7 +13,7 @@ use im_rc::Vector;
 
 use crate::{BackTrace, Error, Str, Symbol, TraceFrame, Value, Var};
 
-use self::bag::Bag;
+use bag::Bag;
 
 struct EnvironmentRepr {
     parent: Option<Rc<RefCell<EnvironmentRepr>>>,
@@ -195,18 +195,18 @@ impl Default for Environment {
             "+", 
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
             Some("Return the sum of all parameter values. Return 0 if called without any parameters."),
-            |env, values| match values.len() {
+            |env, mut values| match values.len() {
                 0 => Ok(Integer::from(0).into()),
-                1 => Ok(values[0].clone()),
+                1 => Ok(unsafe { values.into_iter().next().unwrap_unchecked() }),
                 _ => {
-                    let mut acc = match &values[0] {
-                        Value::Integer(i) => i.clone(),
+                    let mut acc = match unsafe { values.pop_front().unwrap_unchecked() } {
+                        Value::Integer(i) => i,
                         _ => return Err(env.error("wrong-type-arg", None))
                     };
 
-                    for v in values.iter().skip(1) {
+                    for v in values.into_iter() {
                         match v {
-                            Value::Integer(i) => acc.add_assign(i.clone()),
+                            Value::Integer(i) => acc.add_assign(i),
                         _ => return Err(env.error("wrong-type-arg", None))
                         }
                     }
@@ -221,21 +221,21 @@ impl Default for Environment {
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
             Some("If called with one argument Z1, -Z1 returned. Otherwise the sum of all but the first \
                 argument are subtracted from the first argument."),
-            |env, values| match values.len() {
+            |env, mut values| match values.len() {
                 0 => unreachable!(),
-                1 => match &values[0] {
-                    Value::Integer(i) => Ok(i.clone().neg().into()),
+                1 => match unsafe { values.pop_front().unwrap_unchecked() } {
+                    Value::Integer(i) => Ok(i.neg().into()),
                     _ => Err(env.error("wrong-type-arg", None)),
                 },
                 _ => {
-                    let mut acc = match &values[0] {
-                        Value::Integer(i) => i.clone(),
+                    let mut acc = match unsafe { values.pop_front().unwrap_unchecked() } {
+                        Value::Integer(i) => i,
                         _ => return Err(env.error("wrong-type-arg", None)),
                     };
 
-                    for v in values.iter().skip(1) {
+                    for v in values.into_iter() {
                         match v {
-                            Value::Integer(i) => acc.sub_assign(i.clone()),
+                            Value::Integer(i) => acc.sub_assign(i),
                             _ => return Err(env.error("wrong-type-arg", None)),
                         }
                     }
@@ -251,7 +251,7 @@ impl Default for Environment {
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
             Some("Print arguments"),
             |_env, values| {
-                for (i, v) in values.iter().enumerate() {
+                for (i, v) in values.into_iter().enumerate() {
                     if i == 0 {
                         print!("{v}");
                     } else {
@@ -268,7 +268,7 @@ impl Default for Environment {
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
             Some("Print arguments followed by a newline"),
             |_env, values| {
-                for (i, v) in values.iter().enumerate() {
+                for (i, v) in values.into_iter().enumerate() {
                     if i == 0 {
                         print!("{v}");
                     } else {
@@ -293,8 +293,8 @@ impl Default for Environment {
             "string->symbol",
             Parameters::Exact(1),
             Some("Return the symbol whose name is STRING."),
-            |env, values| match values[0] {
-                Value::String(ref s) => Ok(Value::Symbol(Symbol::Name(s.clone()))),
+            |env, mut values| match unsafe { values.pop_front().unwrap_unchecked() } {
+                Value::String(s) => Ok(Value::Symbol(Symbol::Name(s))),
                 _ => Err(env.error("wrong-type-arg", None)),
             },
         );
@@ -312,9 +312,12 @@ impl Default for Environment {
             "eval",
             Parameters::Exact(2),
             Some("Evaluate expression in the given environment."),
-            |env, values| match (&values[0], &values[1]) {
-                (Value::List(_), Value::Environment(env)) => values[0].eval(env.clone()),
-                _ => Err(env.error("wrong-type-arg", None)),
+            |env, mut values| {
+                let l = unsafe { values.pop_front().unwrap_unchecked() };
+                match (&l, unsafe { values.pop_front().unwrap_unchecked() }) {
+                    (Value::List(_), Value::Environment(env)) => l.eval(env),
+                    _ => Err(env.error("wrong-type-arg", None)),
+                }
             },
         );
 
@@ -323,7 +326,7 @@ impl Default for Environment {
             "primitive-eval",
             Parameters::Exact(1),
             Some("Evaluate expression in the current environment."),
-            |env, values| values[0].eval(env),
+            |env, mut values| unsafe { values.pop_front().unwrap_unchecked() }.eval(env),
         );
 
         define(
@@ -331,8 +334,8 @@ impl Default for Environment {
             "procedure-documentation",
             Parameters::Exact(1),
             Some("Return the documentation string associated with `proc'."),
-            |env, values| {
-                if let Value::Lambda(ref p) = values[0] {
+            |env, mut values| {
+                if let Value::Lambda(p) = unsafe { values.pop_front().unwrap_unchecked() } {
                     Ok(p.doc().into())
                 } else {
                     Err(env.error("wrong-type-arg", None))
@@ -345,8 +348,8 @@ impl Default for Environment {
             "procedure-name",
             Parameters::Exact(1),
             Some("Return the name of the procedure."),
-            |env, values| {
-                if let Value::Lambda(ref p) = values[0] {
+            |env, mut values| {
+                if let Value::Lambda(p) = unsafe { values.pop_front().unwrap_unchecked() } {
                     Ok(p.name().into())
                 } else {
                     Err(env.error("wrong-type-arg", None))

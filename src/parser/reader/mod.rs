@@ -3,9 +3,9 @@ mod str_reader;
 #[cfg(feature = "benchmarking")]
 pub mod util;
 #[cfg(not(feature = "benchmarking"))]
-mod util;
+pub(crate) mod util;
 
-use ecow::EcoString;
+use ecow::EcoVec;
 use im_rc::{vector, Vector};
 use phf::phf_map;
 
@@ -222,7 +222,7 @@ fn symbol_or_integer(i: Input) -> Result<Value> {
             .into())
     } else {
         i.ok(Value::Symbol(Symbol::Name(
-            EcoString::from(parsed.as_str()).into(),
+            EcoVec::from(parsed.as_str().as_bytes()).into(),
         )))
     }
 }
@@ -273,7 +273,7 @@ fn parse_string_codepoint<'a>(init: Input<'a>, i: Input<'a>) -> Result<'a, char>
 fn string(i: Input) -> Result<Value> {
     let mut i = needs_char(i, '"')?;
     let mut escaping = false;
-    let mut res = EcoString::new();
+    let mut res = EcoVec::<u8>::new();
     let mut prev_input = i.clone();
 
     loop {
@@ -309,7 +309,10 @@ fn string(i: Input) -> Result<Value> {
                     }
                     _ => return Err(prev_input.err("unexpected escaped symbol")),
                 };
-                res.push(c);
+                let mut buf = [0; 4];
+                for c in c.encode_utf8(&mut buf).as_bytes().iter().copied() {
+                    res.push(c);
+                }
             } else {
                 match c {
                     '\\' => {
@@ -319,7 +322,10 @@ fn string(i: Input) -> Result<Value> {
                         return i.set_needs_ws().ok(Str::from(res).into());
                     }
                     _ => {
-                        res.push(c);
+                        let mut buf = [0; 4];
+                        for c in c.encode_utf8(&mut buf).as_bytes().iter().copied() {
+                            res.push(c);
+                        }
                     }
                 }
             }

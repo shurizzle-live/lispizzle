@@ -3,7 +3,7 @@ mod location;
 #[cfg(feature = "benchmarking")]
 pub mod reader;
 #[cfg(not(feature = "benchmarking"))]
-mod reader;
+pub(crate) mod reader;
 mod span;
 
 use std::{

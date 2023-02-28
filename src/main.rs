@@ -6,7 +6,6 @@ use lispizzle::{
 extern crate lispizzle;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let env = Environment::default();
     let code = match parse_from_file("examples/1.zle".as_ref()) {
         Ok(x) => x,
         Err(FileParseError::Parse(err)) => {
@@ -15,6 +14,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         e => e?,
     };
+
+    let env = Environment::default();
+
     for exp in code {
         if let Err(err) = exp.eval(env.clone()) {
             println!("{:#?}", err);

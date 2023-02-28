@@ -1,4 +1,4 @@
-use ecow::EcoString;
+use ecow::{EcoString, EcoVec};
 
 const USIZE_BYTES: usize = (usize::BITS / u8::BITS) as usize;
 const USIZE_COUNT_MASK: usize = usize::from_be_bytes([0x40_u8; USIZE_BYTES]);
@@ -456,6 +456,13 @@ impl CountChars for String {
     #[inline]
     fn count_chars(&self) -> usize {
         self.as_bytes().count_chars()
+    }
+}
+
+impl CountChars for EcoVec<u8> {
+    #[inline]
+    fn count_chars(&self) -> usize {
+        self.as_slice().count_chars()
     }
 }
 
