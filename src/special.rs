@@ -1,4 +1,4 @@
-use im_rc::Vector;
+use im_rc::{vector, Vector};
 
 use crate::{Environment, Error, Str, Symbol, Value};
 
@@ -9,6 +9,7 @@ pub fn transform(env: Environment, name: Str, args: Vector<Value>) -> Option<Res
         "quote" => Some(quote(env, args)),
         "quasiquote" => Some(quasiquote(env, args)),
         "if" => Some(iff(env, args)),
+        "set!" => Some(set_em_(env, args)),
         _ => None,
     }
 }
@@ -97,6 +98,25 @@ fn iff(env: Environment, args: Vector<Value>) -> Result<Value, Error> {
             args[1].clone().eval(env)
         } else {
             args[2].clone().eval(env)
+        }
+    } else {
+        Err(env.error("syntax-error", None))
+    }
+}
+
+fn set_em_(env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+    if args.len() == 2 {
+        let key = if let Value::Symbol(s) = unsafe { args.pop_front().unwrap_unchecked() } {
+            s
+        } else {
+            return Err(env.error("syntax-error", None));
+        };
+
+        let value = unsafe { args.pop_front().unwrap_unchecked() }.eval(env.clone())?;
+        if env.set(&key, value).is_ok() {
+            Ok(Value::Unspecified)
+        } else {
+            Err(env.error("unbound-variable", vector![key.into()].into()))
         }
     } else {
         Err(env.error("syntax-error", None))

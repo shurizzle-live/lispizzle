@@ -247,6 +247,13 @@ impl From<Str> for Value {
     }
 }
 
+impl From<Symbol> for Value {
+    #[inline]
+    fn from(value: Symbol) -> Self {
+        Self::Symbol(value)
+    }
+}
+
 impl From<Proc> for Value {
     #[inline]
     fn from(value: Proc) -> Self {
