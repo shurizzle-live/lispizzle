@@ -7,7 +7,7 @@ use std::{
 use crate::{Symbol, Value, Var};
 
 #[derive(Clone)]
-pub enum BagRepr<S = RandomState> {
+enum BagRepr<S = RandomState> {
     Empty,
     Single(Symbol, Var),
     Map(HashMap<Symbol, Var, S>),
