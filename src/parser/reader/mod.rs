@@ -122,7 +122,7 @@ fn split_at(i: Input, index: usize) -> Option<(Input, Input)> {
         .map(|i1| (i1, unsafe { i.get_unchecked(index..) }))
 }
 
-fn next_char(i: Input<'_>) -> Option<(char, Input<'_>)> {
+fn next_char(i: Input) -> Option<(char, Input)> {
     i.peek().map(|c| (c, unsafe { i.get_unchecked(1..) }))
 }
 
@@ -164,7 +164,7 @@ fn istarts_with_ci<'a>(i: Input<'a>, need: &str) -> Option<Input<'a>> {
     }
 }
 
-fn needs_char(i: Input<'_>, need: char) -> std::result::Result<Input<'_>, Error> {
+fn needs_char(i: Input, need: char) -> std::result::Result<Input, Error> {
     if let Some((c, rest)) = next_char(i.clone()) {
         if c == need {
             Ok(rest)
@@ -183,7 +183,7 @@ fn char_equals_ci(a: char, b: char) -> bool {
     a.len() == b.len() && a.zip(b).all(|(a, b)| a == b)
 }
 
-fn symbol_or_integer(i: Input<'_>) -> Result<Value> {
+fn symbol_or_integer(i: Input) -> Result<Value> {
     let (len, is_integer) = {
         let mut is_integer = false;
         let mut sign = false;
@@ -270,7 +270,7 @@ fn parse_string_codepoint<'a>(init: Input<'a>, i: Input<'a>) -> Result<'a, char>
     }
 }
 
-fn string(i: Input<'_>) -> Result<Value> {
+fn string(i: Input) -> Result<Value> {
     let mut i = needs_char(i, '"')?;
     let mut escaping = false;
     let mut res = EcoString::new();
@@ -402,7 +402,7 @@ fn nil_or_bool_or_char(i: Input) -> Result<Value> {
     }
 }
 
-fn literal(i: Input<'_>) -> Result<Value> {
+fn literal(i: Input) -> Result<Value> {
     if let Some(c) = i.peek() {
         match c {
             '"' => return string(i),
@@ -414,7 +414,7 @@ fn literal(i: Input<'_>) -> Result<Value> {
     symbol_or_integer(i)
 }
 
-fn list(mut i: Input<'_>) -> Result<Value> {
+fn list(mut i: Input) -> Result<Value> {
     i = if let Some(i) = istarts_with(i.clone(), "(") {
         i.unset_needs_ws()
     } else if i.is_empty() {
@@ -472,13 +472,13 @@ fn expression(i: Input) -> Result<Value> {
     }
 }
 
-fn is_eoc(mut i: Input<'_>) -> Result<bool> {
+fn is_eoc(mut i: Input) -> Result<bool> {
     i = skip_ws(i)?;
     let res = i.is_empty();
     i.ok(res)
 }
 
-pub fn parse(mut i: Input<'_>) -> std::result::Result<Vec<Value>, Error> {
+pub fn parse(mut i: Input) -> std::result::Result<Vec<Value>, Error> {
     let mut prog = Vec::new();
 
     while {
