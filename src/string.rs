@@ -121,6 +121,10 @@ impl Repr {
             }
         }
     }
+
+    pub fn char_at(&self, n: usize) -> Option<char> {
+        self.as_str().skip_chars(n).and_then(|s| s.chars().next())
+    }
 }
 
 impl fmt::Debug for Repr {
@@ -307,6 +311,11 @@ impl Str {
     #[inline]
     pub fn concat(&mut self, other: Str) {
         self.mutate(move |inner| (inner.concat(other.0), ()))
+    }
+
+    #[inline]
+    pub fn char_at(&self, n: usize) -> Option<char> {
+        self.repr().char_at(n)
     }
 }
 

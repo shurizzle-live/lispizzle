@@ -94,6 +94,18 @@ impl Value {
         matches!(self, Value::Error(_))
     }
 
+    pub fn element_at(&self, env: Environment, i: &Integer) -> Result<Value, Error> {
+        if let Some(i) = i.to_usize() {
+            match self {
+                Self::List(l) => Ok(l.get(i).cloned().unwrap_or(Value::Nil)),
+                Self::String(s) => Ok(s.char_at(i).map(Self::from).unwrap_or(Value::Nil)),
+                _ => Err(env.error("wrong-type-arg", None)),
+            }
+        } else {
+            Ok(Value::Nil)
+        }
+    }
+
     pub fn apply(&self, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
         match self {
             Self::Proc(l) => {
@@ -107,16 +119,7 @@ impl Value {
                 if args.len() != 1 {
                     return Err(env.error("wrong-number-of-args", None));
                 }
-
-                if let Value::List(list) = unsafe { args.pop_front().unwrap_unchecked() } {
-                    if let Some(index) = i.to_usize() {
-                        Ok(list.get(index).cloned().unwrap_or(Value::Nil))
-                    } else {
-                        Ok(Value::Nil)
-                    }
-                } else {
-                    Err(env.error("wrong-type-arg", None))
-                }
+                unsafe { args.pop_front().unwrap_unchecked() }.element_at(env, i)
             }
             _ => Err(env.error("wrong-type-arg", None)),
         }
