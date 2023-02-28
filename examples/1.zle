@@ -1,14 +1,13 @@
 (println "1 - 2 + 3 =" (+ (- 1 2) 3))
 
-(print (quote (+ (- 1 2) 3)))
-(println " =" (primitive-eval (quote (+ (- 1 2) 3))))
+(print '(+ (- 1 2) 3))
+(println " =" (primitive-eval '(+ (- 1 2) 3)))
 
-(println "1 - 2 + 3 =" (eval (quote (+ (- 1 2) 3)) (current-environment)))
+(println "1 - 2 + 3 =" (eval '(+ (- 1 2) 3) (current-environment)))
 
-(println "`(1 2 ,(+ 1 2)) =" (quasiquote (1 2 (unquote (+ 1 2)))))
+(println "`(1 2 ,(+ 1 2)) =" `(1 2 ,(+ 1 2)))
 
-(print "`(1 ,@`(2 ,3))")
-(println " =" (quasiquote (1 (unquote-splicing (quasiquote (2 (unquote 3)))))))
+(println "`(1 ,@`(2 ,(+ 1 2)))" "=" `(1 ,@`(2 ,(+ 1 2))))
 
 (print       (procedure-name +))
 (println ":" (procedure-documentation +))

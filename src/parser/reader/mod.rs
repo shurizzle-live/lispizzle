@@ -6,7 +6,7 @@ pub mod util;
 mod util;
 
 use ecow::EcoString;
-use im_rc::Vector;
+use im_rc::{vector, Vector};
 use phf::phf_map;
 
 use rug::{Complete, Integer};
@@ -429,9 +429,28 @@ fn list(mut i: Input<'_>) -> Result<Value> {
     }
 }
 
-fn expression(i: Input<'_>) -> Result<Value> {
+fn expression(i: Input) -> Result<Value> {
+    fn subexpr<'a>(i: Input<'a>, offset: usize, name: &'static str) -> Result<'a, Value> {
+        let i = unsafe { i.get_unchecked(offset..) }.unset_needs_ws();
+        let i = skip_ws(i)?;
+
+        let (i, e) = expression(i)?;
+
+        i.ok(vector![Value::Symbol(Symbol::from(Str::from(name))), e].into())
+    }
+
     if let Some(c) = i.peek() {
-        if c == '(' {
+        if c == '\'' {
+            subexpr(i, 1, "quote")
+        } else if c == '`' {
+            subexpr(i, 1, "quasiquote")
+        } else if c == ',' {
+            if matches!(i.get(1), Some('@')) {
+                subexpr(i, 2, "unquote-splicing")
+            } else {
+                subexpr(i, 1, "unquote")
+            }
+        } else if c == '(' {
             list(i)
         } else {
             literal(i)
