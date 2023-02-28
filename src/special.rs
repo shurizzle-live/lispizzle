@@ -8,6 +8,7 @@ pub fn transform(env: Environment, name: Str, args: Vector<Value>) -> Option<Res
     match name.as_str() {
         "quote" => Some(quote(env, args)),
         "quasiquote" => Some(quasiquote(env, args)),
+        "if" => Some(iff(env, args)),
         _ => None,
     }
 }
@@ -81,5 +82,23 @@ fn quasiquote(env: Environment, args: Vector<Value>) -> Result<Value, Error> {
     match scan(env.clone(), args[0].clone())? {
         Res::Value(v) => Ok(v),
         _ => Err(env.error("syntax-error", None)),
+    }
+}
+
+fn iff(env: Environment, args: Vector<Value>) -> Result<Value, Error> {
+    if args.len() == 2 {
+        if args[0].clone().eval(env.clone())?.to_bool() {
+            args[1].clone().eval(env)
+        } else {
+            Ok(Value::Unspecified)
+        }
+    } else if args.len() == 3 {
+        if args[0].clone().eval(env.clone())?.to_bool() {
+            args[1].clone().eval(env)
+        } else {
+            args[2].clone().eval(env)
+        }
+    } else {
+        Err(env.error("syntax-error", None))
     }
 }

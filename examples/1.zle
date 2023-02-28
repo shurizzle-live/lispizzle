@@ -29,4 +29,8 @@
 ;; get procedure documentation
 (println ":" (procedure-documentation +))
 
+(println (if #f "this is gone to print #<unspecified>"))
+(println (if #f #nil "Hello, I'm the `else` branch"))
+(println (if #t "Hello, I'm the `then` branch" "Hello, I'm the `else` branch"))
+
 ;; vim:ft=scheme
