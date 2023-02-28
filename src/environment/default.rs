@@ -96,12 +96,12 @@ impl Default for Environment {
                 argument are subtracted from the first argument."),
             |env, mut values| match values.len() {
                 0 => unreachable!(),
-                1 => match unsafe { values.pop_front().unwrap_unchecked() } {
+                1 => match unshift(&mut values) {
                     Value::Integer(i) => Ok(i.neg().into()),
                     _ => Err(env.error("wrong-type-arg", None)),
                 },
                 _ => {
-                    let mut acc = match unsafe { values.pop_front().unwrap_unchecked() } {
+                    let mut acc = match unshift(&mut values) {
                         Value::Integer(i) => i,
                         _ => return Err(env.error("wrong-type-arg", None)),
                     };
@@ -186,8 +186,8 @@ impl Default for Environment {
             Parameters::Exact(2),
             Some("Evaluate expression in the given environment."),
             |env, mut values| {
-                let l = unsafe { values.pop_front().unwrap_unchecked() };
-                match (&l, unsafe { values.pop_front().unwrap_unchecked() }) {
+                let l = unshift(&mut values);
+                match (&l, unshift(&mut values)) {
                     (Value::List(_), Value::Environment(env)) => l.eval(env),
                     _ => Err(env.error("wrong-type-arg", None)),
                 }
@@ -199,7 +199,7 @@ impl Default for Environment {
             "primitive-eval",
             Parameters::Exact(1),
             Some("Evaluate expression in the current environment."),
-            |env, mut values| unsafe { values.pop_front().unwrap_unchecked() }.eval(env),
+            |env, mut values| unshift(&mut values).eval(env),
         );
 
         define_fn(
@@ -208,7 +208,7 @@ impl Default for Environment {
             Parameters::Exact(1),
             Some("Return the documentation string associated with `proc'."),
             |env, mut values| {
-                if let Value::Proc(p) = unsafe { values.pop_front().unwrap_unchecked() } {
+                if let Value::Proc(p) = unshift(&mut values) {
                     Ok(p.doc().map(Value::from).unwrap_or(Value::Boolean(false)))
                 } else {
                     Err(env.error("wrong-type-arg", None))
@@ -222,7 +222,7 @@ impl Default for Environment {
             Parameters::Exact(1),
             Some("Return the name of the procedure."),
             |env, mut values| {
-                if let Value::Proc(p) = unsafe { values.pop_front().unwrap_unchecked() } {
+                if let Value::Proc(p) = unshift(&mut values) {
                     Ok(p.name().into())
                 } else {
                     Err(env.error("wrong-type-arg", None))
