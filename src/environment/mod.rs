@@ -1,3 +1,5 @@
+mod bag;
+
 use std::{
     borrow::Borrow,
     cell::{Ref, RefCell},
@@ -7,14 +9,16 @@ use std::{
     rc::Rc,
 };
 
-use im_rc::{HashMap, Vector};
+use im_rc::Vector;
 
 use crate::{BackTrace, Error, Str, Symbol, TraceFrame, Value, Var};
+
+use self::bag::Bag;
 
 struct EnvironmentRepr {
     parent: Option<Rc<RefCell<EnvironmentRepr>>>,
     gensym: usize,
-    storage: HashMap<Symbol, Var>,
+    bag: Bag,
     trace: Option<TraceFrame>,
 }
 
@@ -28,13 +32,10 @@ impl EnvironmentRepr {
         let key = key.borrow();
 
         match key {
-            Symbol::Gensym(env, _) if *env == (self as *const _ as usize) => {
-                self.storage.get(key).cloned()
-            }
+            Symbol::Gensym(env, _) if *env == (self as *const _ as usize) => self.bag.get(key),
             Symbol::Name(_) => self
-                .storage
+                .bag
                 .get(key)
-                .cloned()
                 .or_else(|| self.parent().and_then(|p| p.get(key))),
             _ => self.parent().and_then(|p| p.get(key)),
         }
@@ -55,10 +56,10 @@ impl EnvironmentRepr {
         if matches!(&key, Symbol::Gensym(env, _) if *env == (self as *const _ as usize))
             || matches!(&key, Symbol::Name(_))
         {
-            if let Some(var) = self.storage.get(&key).cloned() {
+            if let Some(var) = self.bag.get(&key) {
                 var.set(value);
             } else {
-                self.storage.insert(key, Var::new(value));
+                self.bag.insert(key, Var::new(value));
             }
         }
     }
@@ -99,7 +100,7 @@ impl Environment {
         Self(Rc::new(RefCell::new(EnvironmentRepr {
             parent: None,
             gensym: 0,
-            storage: HashMap::new(),
+            bag: Bag::new(),
             trace: Some(TraceFrame::main()),
         })))
     }
@@ -108,7 +109,7 @@ impl Environment {
         Self(Rc::new(RefCell::new(EnvironmentRepr {
             parent: Some(Rc::clone(&self.0)),
             gensym: 0,
-            storage: HashMap::new(),
+            bag: Bag::new(),
             trace,
         })))
     }
