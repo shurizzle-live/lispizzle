@@ -5,17 +5,24 @@
   (+ (- 1 2) 3))
 
 ;; test eval
-(println "1 - 2 + 3 =" (eval '(+ (- 1 2) 3) (current-environment)))
+(println
+  "eval in current environment"
+  '(+ (- 1 2) 3)
+  "="
+  (eval '(+ (- 1 2) 3) (current-environment)))
 
 ;; test primitive-eval (no need to pass the environment)
-(print '(+ (- 1 2) 3))
-(println " =" (primitive-eval '(+ (- 1 2) 3)))
+(println
+  "primitive-eval"
+  '(+ (- 1 2) 3)
+  "="
+  (primitive-eval '(+ (- 1 2) 3)))
 
 ;; test quasiquote with unquote
 (println "`(1 2 ,(+ 1 2)) =" `(1 2 ,(+ 1 2)))
 
 ;; test quasiquote with unquote-splicing
-(println "`(1 ,@`(2 ,(+ 1 2)))" "=" `(1 ,@`(2 ,(+ 1 2))))
+(println "`(1 ,@`(2 ,(+ 1 2))) =" `(1 ,@`(2 ,(+ 1 2))))
 
 ;; get procedure name
 (print       (procedure-name +))
