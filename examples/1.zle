@@ -33,4 +33,7 @@
 (println (if #f #nil "Hello, I'm the `else` branch"))
 (println (if #t "Hello, I'm the `then` branch" "Hello, I'm the `else` branch"))
 
+;; call sum with apply
+(println "(apply + '(1 2 3)) =" (apply + '(1 2 3)))
+
 ;; vim:ft=scheme

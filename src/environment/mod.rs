@@ -336,7 +336,7 @@ impl Default for Environment {
             Some("Return the documentation string associated with `proc'."),
             |env, mut values| {
                 if let Value::Lambda(p) = unsafe { values.pop_front().unwrap_unchecked() } {
-                    Ok(p.doc().into())
+                    Ok(p.doc().map(Value::from).unwrap_or(Value::Boolean(false)))
                 } else {
                     Err(env.error("wrong-type-arg", None))
                 }
@@ -351,6 +351,21 @@ impl Default for Environment {
             |env, mut values| {
                 if let Value::Lambda(p) = unsafe { values.pop_front().unwrap_unchecked() } {
                     Ok(p.name().into())
+                } else {
+                    Err(env.error("wrong-type-arg", None))
+                }
+            },
+        );
+
+        define(
+            &me,
+            "apply",
+            Parameters::Exact(2),
+            Option::<&str>::None,
+            |env, mut values| {
+                let f = unsafe { values.pop_front().unwrap_unchecked() };
+                if let Value::List(args) = unsafe { values.pop_front().unwrap_unchecked() } {
+                    f.apply(env, args)
                 } else {
                     Err(env.error("wrong-type-arg", None))
                 }
