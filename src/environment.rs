@@ -9,13 +9,13 @@ use std::{
 
 use im_rc::{HashMap, Vector};
 
-use crate::{BackTrace, Error, Str, Symbol, Trace, Value, Var};
+use crate::{BackTrace, Error, Str, Symbol, TraceFrame, Value, Var};
 
 struct EnvironmentRepr {
     parent: Option<Rc<RefCell<EnvironmentRepr>>>,
     gensym: usize,
     storage: HashMap<Symbol, Var>,
-    trace: Option<Trace>,
+    trace: Option<TraceFrame>,
 }
 
 impl EnvironmentRepr {
@@ -70,7 +70,7 @@ impl EnvironmentRepr {
     }
 
     #[inline]
-    pub fn trace(&self) -> Option<Trace> {
+    pub fn trace(&self) -> Option<TraceFrame> {
         self.trace.clone()
     }
 
@@ -100,11 +100,11 @@ impl Environment {
             parent: None,
             gensym: 0,
             storage: HashMap::new(),
-            trace: Some(Trace::main()),
+            trace: Some(TraceFrame::main()),
         })))
     }
 
-    fn _child(&self, trace: Option<Trace>) -> Self {
+    fn _child(&self, trace: Option<TraceFrame>) -> Self {
         Self(Rc::new(RefCell::new(EnvironmentRepr {
             parent: Some(Rc::clone(&self.0)),
             gensym: 0,
@@ -119,7 +119,7 @@ impl Environment {
     }
 
     #[inline]
-    pub fn with_trace(&self, trace: Trace) -> Self {
+    pub fn with_trace(&self, trace: TraceFrame) -> Self {
         self._child(Some(trace))
     }
 
@@ -144,7 +144,7 @@ impl Environment {
     }
 
     #[inline]
-    pub fn trace(&self) -> Option<Trace> {
+    pub fn trace(&self) -> Option<TraceFrame> {
         RefCell::borrow(&*self.0).trace()
     }
 

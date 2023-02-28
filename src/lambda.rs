@@ -2,7 +2,7 @@ use std::{fmt, num::NonZeroUsize, rc::Rc};
 
 use im_rc::Vector;
 
-use crate::{Environment, Error, Str, Value};
+use crate::{Environment, Error, Str, TraceFrame, Value};
 
 pub trait Callable {
     fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error>;
@@ -254,12 +254,21 @@ impl Lambda {
     pub fn addr(&self) -> usize {
         self._addr()
     }
+
+    #[inline]
+    pub fn trace(&self) -> TraceFrame {
+        if let Some(name) = self.name() {
+            TraceFrame::named(self._addr(), name)
+        } else {
+            TraceFrame::unnamed(self._addr())
+        }
+    }
 }
 
 impl Callable for Lambda {
     #[inline]
     fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
-        self.repr.call(env, parameters)
+        self.repr.call(env.with_trace(self.trace()), parameters)
     }
 }
 
