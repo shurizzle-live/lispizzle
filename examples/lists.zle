@@ -1,0 +1,5 @@
+(define l '(1 2 3 4))
+
+(println (0 l))
+
+;; vim:ft=scheme

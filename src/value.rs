@@ -94,7 +94,7 @@ impl Value {
         matches!(self, Value::Error(_))
     }
 
-    pub fn apply(&self, env: Environment, args: Vector<Value>) -> Result<Value, Error> {
+    pub fn apply(&self, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
         match self {
             Self::Proc(l) => {
                 if l.min_arity() > args.len() {
@@ -103,7 +103,21 @@ impl Value {
                     l.call(env, args)
                 }
             }
-            Self::Var(v) => v.get().apply(env, args),
+            Self::Integer(i) => {
+                if args.len() != 1 {
+                    return Err(env.error("wrong-number-of-args", None));
+                }
+
+                if let Value::List(list) = unsafe { args.pop_front().unwrap_unchecked() } {
+                    if let Some(index) = i.to_usize() {
+                        Ok(list.get(index).cloned().unwrap_or(Value::Nil))
+                    } else {
+                        Ok(Value::Nil)
+                    }
+                } else {
+                    Err(env.error("wrong-type-arg", None))
+                }
+            }
             _ => Err(env.error("wrong-type-arg", None)),
         }
     }
