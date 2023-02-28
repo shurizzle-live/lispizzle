@@ -1,3 +1,9 @@
+(define name "scheme")
+
+(set! name "lispizzle")
+
+(println "I ♥" name)
+
 (println
   ;; this is a
   "1 - 2 + 3 ="

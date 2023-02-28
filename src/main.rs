@@ -1,6 +1,6 @@
 use lispizzle::{
     parser::{parse_from_file, FileParseError},
-    Environment,
+    Environment, Program,
 };
 
 extern crate lispizzle;
@@ -15,13 +15,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         e => e?,
     };
 
+    let prog = match Program::new(code) {
+        Ok(x) => x,
+        Err(err) => {
+            println!("{:#?}", err);
+            return Ok(());
+        }
+    };
+
     let env = Environment::default();
 
-    for exp in code {
-        if let Err(err) = exp.eval(env.clone()) {
+    match prog.eval(env) {
+        Ok(_) => (),
+        Err(err) => {
             println!("{:#?}", err);
             return Ok(());
         }
     }
+
     Ok(())
 }

@@ -17,17 +17,17 @@ pub struct TraceFrame(TraceFrameRepr);
 pub type BackTrace = Vector<TraceFrame>;
 
 impl TraceFrame {
-    pub fn main() -> Self {
+    pub const fn main() -> Self {
         Self(TraceFrameRepr::Main)
     }
 
     #[inline]
-    pub fn unnamed(address: usize) -> Self {
+    pub const fn unnamed(address: usize) -> Self {
         Self(TraceFrameRepr::Unnamed(address))
     }
 
     #[inline]
-    pub fn named(address: usize, name: Str) -> Self {
+    pub const fn named(address: usize, name: Str) -> Self {
         Self(TraceFrameRepr::Named(address, name))
     }
 }
