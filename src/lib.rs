@@ -1,8 +1,8 @@
 mod backtrace;
 mod environment;
 mod error;
-mod lambda;
 pub mod parser;
+mod proc;
 mod special;
 mod string;
 mod symbol;
@@ -13,7 +13,7 @@ mod var;
 pub use backtrace::*;
 pub use environment::Environment;
 pub use error::Error;
-pub use lambda::*;
+pub use proc::*;
 pub use string::*;
 pub use symbol::Symbol;
 pub use value::Value;

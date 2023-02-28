@@ -167,7 +167,7 @@ impl Environment {
 
 impl Default for Environment {
     fn default() -> Self {
-        use crate::{Lambda, Parameters};
+        use crate::{Parameters, Proc};
         use rug::Integer;
         use std::num::NonZeroUsize;
 
@@ -178,19 +178,49 @@ impl Default for Environment {
             name: S1,
             ps: Parameters<usize, NonZeroUsize>,
             doc: Option<S2>,
+            r#macro: bool,
             f: F,
         ) where
             F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static,
             S1: Into<Str>,
             S2: Into<Str>,
         {
-            let mut lambda = Lambda::from_native(ps, doc.map(|s| s.into()), f);
+            let mut lambda = Proc::from_native(ps, doc.map(|s| s.into()), r#macro, f);
             let name: Str = name.into();
             lambda.set_name(name.clone());
             env.define(Symbol::Name(name), lambda.into());
         }
 
-        define(
+        fn define_fn<F, S1, S2>(
+            env: &Environment,
+            name: S1,
+            ps: Parameters<usize, NonZeroUsize>,
+            doc: Option<S2>,
+            f: F,
+        ) where
+            F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static,
+            S1: Into<Str>,
+            S2: Into<Str>,
+        {
+            define(env, name, ps, doc, false, f)
+        }
+
+        #[allow(dead_code)]
+        fn define_macro<F, S1, S2>(
+            env: &Environment,
+            name: S1,
+            ps: Parameters<usize, NonZeroUsize>,
+            doc: Option<S2>,
+            f: F,
+        ) where
+            F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static,
+            S1: Into<Str>,
+            S2: Into<Str>,
+        {
+            define(env, name, ps, doc, true, f)
+        }
+
+        define_fn(
             &me,
             "+", 
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
@@ -215,7 +245,7 @@ impl Default for Environment {
                 }
             });
 
-        define(
+        define_fn(
             &me,
             "-",
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
@@ -245,7 +275,7 @@ impl Default for Environment {
             },
         );
 
-        define(
+        define_fn(
             &me,
             "print",
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
@@ -262,7 +292,7 @@ impl Default for Environment {
             },
         );
 
-        define(
+        define_fn(
             &me,
             "println",
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
@@ -280,7 +310,7 @@ impl Default for Environment {
             },
         );
 
-        define(
+        define_fn(
             &me,
             "list",
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
@@ -288,7 +318,7 @@ impl Default for Environment {
             |_env, values| Ok(values.into()),
         );
 
-        define(
+        define_fn(
             &me,
             "string->symbol",
             Parameters::Exact(1),
@@ -299,7 +329,7 @@ impl Default for Environment {
             },
         );
 
-        define(
+        define_fn(
             &me,
             "current-environment",
             Parameters::Exact(0),
@@ -307,7 +337,7 @@ impl Default for Environment {
             |env, _| Ok(Value::Environment(env)),
         );
 
-        define(
+        define_fn(
             &me,
             "eval",
             Parameters::Exact(2),
@@ -321,7 +351,7 @@ impl Default for Environment {
             },
         );
 
-        define(
+        define_fn(
             &me,
             "primitive-eval",
             Parameters::Exact(1),
@@ -329,13 +359,13 @@ impl Default for Environment {
             |env, mut values| unsafe { values.pop_front().unwrap_unchecked() }.eval(env),
         );
 
-        define(
+        define_fn(
             &me,
             "procedure-documentation",
             Parameters::Exact(1),
             Some("Return the documentation string associated with `proc'."),
             |env, mut values| {
-                if let Value::Lambda(p) = unsafe { values.pop_front().unwrap_unchecked() } {
+                if let Value::Proc(p) = unsafe { values.pop_front().unwrap_unchecked() } {
                     Ok(p.doc().map(Value::from).unwrap_or(Value::Boolean(false)))
                 } else {
                     Err(env.error("wrong-type-arg", None))
@@ -343,13 +373,13 @@ impl Default for Environment {
             },
         );
 
-        define(
+        define_fn(
             &me,
             "procedure-name",
             Parameters::Exact(1),
             Some("Return the name of the procedure."),
             |env, mut values| {
-                if let Value::Lambda(p) = unsafe { values.pop_front().unwrap_unchecked() } {
+                if let Value::Proc(p) = unsafe { values.pop_front().unwrap_unchecked() } {
                     Ok(p.name().into())
                 } else {
                     Err(env.error("wrong-type-arg", None))
@@ -357,7 +387,7 @@ impl Default for Environment {
             },
         );
 
-        define(
+        define_fn(
             &me,
             "apply",
             Parameters::Exact(2),

@@ -14,7 +14,9 @@ pub enum Parameters<T1, T2> {
     Variadic(T2),
 }
 
-struct NativeFnRepr<T: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + ?Sized + 'static>
+struct NativeProcRepr<T>
+where
+    T: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + ?Sized + 'static,
 {
     parameters: Parameters<usize, NonZeroUsize>,
     doc: Option<Str>,
@@ -22,14 +24,17 @@ struct NativeFnRepr<T: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) 
 }
 
 #[allow(clippy::type_complexity)]
-impl<F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static> NativeFnRepr<F> {
+impl<F> NativeProcRepr<F>
+where
+    F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static,
+{
     #[inline]
     pub fn new(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<Str>,
         fun: F,
-    ) -> Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>>> {
-        Rc::new(NativeFnRepr {
+    ) -> Rc<NativeProcRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>>> {
+        Rc::new(NativeProcRepr {
             parameters,
             doc,
             fun,
@@ -37,7 +42,7 @@ impl<F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static> Nati
     }
 }
 
-impl NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>> {
+impl NativeProcRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>> {
     #[inline]
     pub fn doc(&self) -> Option<Str> {
         self.doc.clone()
@@ -52,7 +57,7 @@ impl NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>> {
     }
 }
 
-impl Callable for Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>>> {
+impl Callable for Rc<NativeProcRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>>> {
     #[inline(always)]
     fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
         (self.fun)(env, parameters)
@@ -60,14 +65,18 @@ impl Callable for Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Result<V
 }
 
 #[allow(clippy::type_complexity)]
-struct NativeFn(Rc<NativeFnRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>>>);
+struct NativeProc(Rc<NativeProcRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>>>);
 
-fn fmt_parameters<T: fmt::Display, I: IntoIterator<Item = T>>(
+fn fmt_parameters<T, I>(
     f: &mut fmt::Formatter<'_>,
     variadic: bool,
     len: usize,
     iiter: I,
-) -> fmt::Result {
+) -> fmt::Result
+where
+    T: fmt::Display,
+    I: IntoIterator<Item = T>,
+{
     let mut it = iiter.into_iter();
     write!(f, "(")?;
 
@@ -97,14 +106,13 @@ fn fmt_parameters<T: fmt::Display, I: IntoIterator<Item = T>>(
     write!(f, ")")
 }
 
-impl NativeFn {
+impl NativeProc {
     #[inline]
-    fn new<F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static>(
-        parameters: Parameters<usize, NonZeroUsize>,
-        doc: Option<Str>,
-        fun: F,
-    ) -> Self {
-        Self(NativeFnRepr::new(parameters, doc, fun))
+    fn new<F>(parameters: Parameters<usize, NonZeroUsize>, doc: Option<Str>, fun: F) -> Self
+    where
+        F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static,
+    {
+        Self(NativeProcRepr::new(parameters, doc, fun))
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -127,23 +135,23 @@ impl NativeFn {
     }
 }
 
-impl PartialEq for NativeFn {
+impl PartialEq for NativeProc {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(&*self.0 as *const _, &*other.0 as *const _)
     }
 }
 
-impl Eq for NativeFn {}
+impl Eq for NativeProc {}
 
-impl Callable for NativeFn {
+impl Callable for NativeProc {
     #[inline]
     fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
         self.0.call(env, parameters)
     }
 }
 
-impl Clone for NativeFn {
+impl Clone for NativeProc {
     #[inline]
     fn clone(&self) -> Self {
         Self(Rc::clone(&self.0))
@@ -151,18 +159,17 @@ impl Clone for NativeFn {
 }
 
 #[derive(Clone)]
-enum LambdaRepr {
-    Native(NativeFn),
+enum ProcRepr {
+    Native(NativeProc),
 }
 
-impl LambdaRepr {
+impl ProcRepr {
     #[inline]
-    fn from_native<F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static>(
-        parameters: Parameters<usize, NonZeroUsize>,
-        doc: Option<Str>,
-        fun: F,
-    ) -> Self {
-        Self::Native(NativeFn::new(parameters, doc, fun))
+    fn from_native<F>(parameters: Parameters<usize, NonZeroUsize>, doc: Option<Str>, fun: F) -> Self
+    where
+        F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static,
+    {
+        Self::Native(NativeProc::new(parameters, doc, fun))
     }
 
     #[inline]
@@ -180,7 +187,7 @@ impl LambdaRepr {
     }
 }
 
-impl Callable for LambdaRepr {
+impl Callable for ProcRepr {
     #[inline]
     fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
         match self {
@@ -189,7 +196,7 @@ impl Callable for LambdaRepr {
     }
 }
 
-impl PartialEq for LambdaRepr {
+impl PartialEq for ProcRepr {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Native(l0), Self::Native(r0)) => l0 == r0,
@@ -197,24 +204,30 @@ impl PartialEq for LambdaRepr {
     }
 }
 
-impl Eq for LambdaRepr {}
+impl Eq for ProcRepr {}
 
 #[derive(Clone)]
-pub struct Lambda {
+pub struct Proc {
     name: Option<Str>,
-    repr: LambdaRepr,
+    r#macro: bool,
+    repr: ProcRepr,
 }
 
-impl Lambda {
+impl Proc {
     #[inline]
-    pub fn from_native<F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static>(
+    pub fn from_native<F>(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<Str>,
+        r#macro: bool,
         fun: F,
-    ) -> Self {
+    ) -> Self
+    where
+        F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static,
+    {
         Self {
             name: None,
-            repr: (LambdaRepr::from_native(parameters, doc, fun)),
+            r#macro,
+            repr: (ProcRepr::from_native(parameters, doc, fun)),
         }
     }
 
@@ -243,9 +256,14 @@ impl Lambda {
         self.repr.min_arity()
     }
 
+    #[inline]
+    pub fn is_macro(&self) -> bool {
+        self.r#macro
+    }
+
     fn _addr(&self) -> usize {
         match &self.repr {
-            LambdaRepr::Native(l) => &*l.0 as *const _ as *const u8 as usize,
+            ProcRepr::Native(l) => &*l.0 as *const _ as *const u8 as usize,
         }
     }
 
@@ -265,23 +283,23 @@ impl Lambda {
     }
 }
 
-impl Callable for Lambda {
+impl Callable for Proc {
     #[inline]
     fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
         self.repr.call(env.with_trace(self.trace()), parameters)
     }
 }
 
-impl PartialEq for Lambda {
+impl PartialEq for Proc {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.repr == other.repr
     }
 }
 
-impl Eq for Lambda {}
+impl Eq for Proc {}
 
-impl fmt::Debug for Lambda {
+impl fmt::Debug for Proc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#<procedure ")?;
 
@@ -292,7 +310,7 @@ impl fmt::Debug for Lambda {
         }
 
         match &self.repr {
-            LambdaRepr::Native(l) => l.fmt_parameters(f)?,
+            ProcRepr::Native(l) => l.fmt_parameters(f)?,
         }
         write!(f, ">")
     }
@@ -305,7 +323,7 @@ mod tests {
     use im_rc::{vector, Vector};
     use rug::Integer;
 
-    use crate::{Callable, Environment, Error, Lambda, Parameters, Value};
+    use crate::{Callable, Environment, Error, Parameters, Proc, Value};
 
     fn add(env: Environment, pars: Vector<Value>) -> Result<Value, Error> {
         let mut res = Integer::from(0);
@@ -324,9 +342,10 @@ mod tests {
     #[test]
     fn run() {
         let env = Environment::new();
-        let lambda = Lambda::from_native(
+        let lambda = Proc::from_native(
             Parameters::Variadic(NonZeroUsize::new(1).unwrap()),
             None,
+            false,
             add,
         );
         assert!(lambda == lambda);
@@ -352,9 +371,10 @@ mod tests {
     #[test]
     fn fmt() {
         {
-            let mut lambda = Lambda::from_native(
+            let mut lambda = Proc::from_native(
                 Parameters::Variadic(NonZeroUsize::new(1).unwrap()),
                 None,
+                false,
                 add,
             );
             assert_eq!(
@@ -365,9 +385,10 @@ mod tests {
             assert_eq!(format!("{:?}", lambda), "#<procedure test (. _)>");
         }
         {
-            let mut lambda = Lambda::from_native(
+            let mut lambda = Proc::from_native(
                 Parameters::Variadic(NonZeroUsize::new(2).unwrap()),
                 None,
+                false,
                 add,
             );
             assert_eq!(
@@ -378,7 +399,7 @@ mod tests {
             assert_eq!(format!("{:?}", lambda), "#<procedure test (_ . _)>");
         }
         {
-            let mut lambda = Lambda::from_native(Parameters::Exact(2), None, add);
+            let mut lambda = Proc::from_native(Parameters::Exact(2), None, false, add);
             assert_eq!(
                 format!("{:?}", lambda),
                 format!("#<procedure {:x} (_ _)>", lambda.addr())
