@@ -78,6 +78,15 @@ impl<'a> Input<'a> {
         ))
     }
 
+    #[inline]
+    pub fn skip_until_nl(self) -> Self {
+        Self {
+            path: self.path,
+            inner: self.inner.skip_until_nl(),
+            need_ws: self.need_ws,
+        }
+    }
+
     pub fn err<M: Into<Message>>(self, message: M) -> Error {
         Error {
             path: self

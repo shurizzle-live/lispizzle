@@ -6,7 +6,10 @@ use std::{
 
 use unicode_width::UnicodeWidthStr;
 
-use super::{super::Location, util::SkipChars};
+use super::{
+    super::Location,
+    util::{CountChars, SkipChars},
+};
 
 pub trait Slice<T> {
     type Output;
@@ -53,6 +56,8 @@ pub trait Reader:
     }
 
     fn ltrim(self) -> Self;
+
+    fn skip_until_nl(self) -> Self;
 
     fn split_at<F: Fn(char) -> bool>(self, f: F) -> Option<(Self, Self)>;
 }
@@ -286,6 +291,31 @@ impl<'a> Reader for StringReader<'a> {
         }
 
         None
+    }
+
+    fn skip_until_nl(self) -> Self {
+        let s = self.as_str();
+        if let Some(off) = memchr::memchr(b'\n', s.as_bytes()) {
+            let off = off + 1;
+
+            let skipped_chars = s[..off].count_chars();
+
+            Self {
+                offset: self.offset + off,
+                last: self.last,
+                line: self.line + 1,
+                char_count: self.char_count - skipped_chars,
+                text: self.text,
+            }
+        } else {
+            Self {
+                offset: self.last,
+                last: self.last,
+                line: self.line,
+                char_count: 0,
+                text: self.text,
+            }
+        }
     }
 }
 

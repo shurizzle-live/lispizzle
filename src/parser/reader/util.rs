@@ -1,5 +1,3 @@
-use std::borrow::Borrow;
-
 use ecow::EcoString;
 
 const USIZE_BYTES: usize = (usize::BITS / u8::BITS) as usize;
@@ -447,9 +445,23 @@ impl CountChars for [u8] {
     }
 }
 
-impl<T: Borrow<str>> CountChars for T {
+impl CountChars for str {
     #[inline]
     fn count_chars(&self) -> usize {
-        self.borrow().as_bytes().count_chars()
+        self.as_bytes().count_chars()
+    }
+}
+
+impl CountChars for String {
+    #[inline]
+    fn count_chars(&self) -> usize {
+        self.as_bytes().count_chars()
+    }
+}
+
+impl CountChars for EcoString {
+    #[inline]
+    fn count_chars(&self) -> usize {
+        self.as_bytes().count_chars()
     }
 }

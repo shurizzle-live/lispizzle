@@ -86,7 +86,19 @@ const CHAR_NAME_TO_CODEPOINT: phf::Map<&'static str, char> = phf_map! {
 
 fn skip_ws(mut i: Input) -> std::result::Result<Input, Error> {
     let old_len = i.len();
-    i = i.ltrim();
+    loop {
+        let old_len = i.len();
+
+        i = i.ltrim();
+
+        if matches!(i.peek(), Some(';')) {
+            i = i.skip_until_nl();
+        }
+
+        if i.len() == old_len {
+            break;
+        }
+    }
 
     if i.len() < old_len {
         i = i.unset_needs_ws();

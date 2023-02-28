@@ -1,13 +1,25 @@
-(println "1 - 2 + 3 =" (+ (- 1 2) 3))
+(println
+  ;; this is a
+  "1 - 2 + 3 ="
+  ;; comment
+  (+ (- 1 2) 3))
 
+;; test eval
+(println "1 - 2 + 3 =" (eval '(+ (- 1 2) 3) (current-environment)))
+
+;; test primitive-eval (no need to pass the environment)
 (print '(+ (- 1 2) 3))
 (println " =" (primitive-eval '(+ (- 1 2) 3)))
 
-(println "1 - 2 + 3 =" (eval '(+ (- 1 2) 3) (current-environment)))
-
+;; test quasiquote with unquote
 (println "`(1 2 ,(+ 1 2)) =" `(1 2 ,(+ 1 2)))
 
+;; test quasiquote with unquote-splicing
 (println "`(1 ,@`(2 ,(+ 1 2)))" "=" `(1 ,@`(2 ,(+ 1 2))))
 
+;; get procedure name
 (print       (procedure-name +))
+;; get procedure documentation
 (println ":" (procedure-documentation +))
+
+;; vim:ft=scheme
