@@ -208,7 +208,7 @@ impl Eq for ProcRepr {}
 
 #[derive(Clone)]
 pub struct Proc {
-    name: Option<Str>,
+    name: Option<Symbol>,
     r#macro: bool,
     repr: ProcRepr,
 }
@@ -232,11 +232,11 @@ impl Proc {
     }
 
     #[inline]
-    pub fn name(&self) -> Option<Str> {
+    pub fn name(&self) -> Option<Symbol> {
         self.name.clone()
     }
 
-    pub fn set_name<I: Into<Str>>(&mut self, name: I) {
+    pub fn set_name<I: Into<Symbol>>(&mut self, name: I) {
         let name = name.into();
         self.name = Some(name);
     }
@@ -324,7 +324,7 @@ mod tests {
     use im_rc::{vector, Vector};
     use rug::Integer;
 
-    use crate::{Callable, Environment, Error, Parameters, Proc, Value};
+    use crate::{Callable, Environment, Error, Parameters, Proc, Symbol, Value};
 
     fn add(env: Environment, pars: Vector<Value>) -> Result<Value, Error> {
         let mut res = Integer::from(0);
@@ -382,7 +382,7 @@ mod tests {
                 format!("{:?}", lambda),
                 format!("#<procedure {:x} (. _)>", lambda.addr())
             );
-            lambda.set_name("test");
+            lambda.set_name(Symbol::Name("test".into()));
             assert_eq!(format!("{:?}", lambda), "#<procedure test (. _)>");
         }
         {
@@ -396,7 +396,7 @@ mod tests {
                 format!("{:?}", lambda),
                 format!("#<procedure {:x} (_ . _)>", lambda.addr())
             );
-            lambda.set_name("test");
+            lambda.set_name(Symbol::Name("test".into()));
             assert_eq!(format!("{:?}", lambda), "#<procedure test (_ . _)>");
         }
         {
@@ -405,7 +405,7 @@ mod tests {
                 format!("{:?}", lambda),
                 format!("#<procedure {:x} (_ _)>", lambda.addr())
             );
-            lambda.set_name("test");
+            lambda.set_name(Symbol::Name("test".into()));
             assert_eq!(format!("{:?}", lambda), "#<procedure test (_ _)>");
         }
     }

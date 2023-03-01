@@ -39,7 +39,11 @@ impl Program {
             return Err(env.error("syntax-error", None));
         };
 
-        let value = exp.eval(env.clone())?;
+        let mut value = exp.eval(env.clone())?;
+
+        if let Value::Proc(ref mut proc) = value {
+            proc.set_name(name.clone());
+        }
 
         env.define(name, value);
 

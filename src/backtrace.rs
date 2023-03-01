@@ -2,13 +2,13 @@ use std::fmt;
 
 use im_rc::Vector;
 
-use crate::Str;
+use crate::Symbol;
 
 #[derive(Debug, Clone)]
 enum TraceFrameRepr {
     Main,
     Unnamed(usize),
-    Named(usize, Str),
+    Named(usize, Symbol),
 }
 
 #[derive(Debug, Clone)]
@@ -27,7 +27,7 @@ impl TraceFrame {
     }
 
     #[inline]
-    pub const fn named(address: usize, name: Str) -> Self {
+    pub const fn named(address: usize, name: Symbol) -> Self {
         Self(TraceFrameRepr::Named(address, name))
     }
 }
