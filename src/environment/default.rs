@@ -12,24 +12,6 @@ impl Default for Environment {
 
         let me = Self::new();
 
-        fn define<F, S1, S2>(
-            env: &Environment,
-            name: S1,
-            ps: Parameters<usize, NonZeroUsize>,
-            doc: Option<S2>,
-            r#macro: bool,
-            f: F,
-        ) where
-            F: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
-            S1: Into<Str>,
-            S2: Into<Str>,
-        {
-            let mut lambda = Proc::from_native(ps, doc.map(|s| s.into()), r#macro, f);
-            let name: Str = name.into();
-            lambda.set_name(name.clone());
-            env.define(Symbol::Name(name), lambda.into());
-        }
-
         fn define_fn<F, S1, S2>(
             env: &Environment,
             name: S1,
@@ -41,7 +23,10 @@ impl Default for Environment {
             S1: Into<Str>,
             S2: Into<Str>,
         {
-            define(env, name, ps, doc, false, f)
+            let mut lambda = Proc::from_native(ps, doc.map(|s| s.into()), f);
+            let name: Str = name.into();
+            lambda.set_name(name.clone());
+            env.define(Symbol::Name(name), Value::Fn(lambda));
         }
 
         #[allow(dead_code)]
@@ -56,7 +41,10 @@ impl Default for Environment {
             S1: Into<Str>,
             S2: Into<Str>,
         {
-            define(env, name, ps, doc, true, f)
+            let mut lambda = Proc::from_native(ps, doc.map(|s| s.into()), f);
+            let name: Str = name.into();
+            lambda.set_name(name.clone());
+            env.define(Symbol::Name(name), Value::Macro(lambda));
         }
 
         fn unshift(v: &mut Vector<Value>) -> Value {
@@ -192,7 +180,7 @@ impl Default for Environment {
             Parameters::Exact(1),
             Some("Return the documentation string associated with `proc'."),
             |trace, mut values| {
-                if let Value::Proc(p) = unshift(&mut values) {
+                if let Value::Fn(p) = unshift(&mut values) {
                     Ok(p.doc().map(Value::from).unwrap_or(Value::Boolean(false)))
                 } else {
                     Err(trace.error("wrong-type-arg", None))
@@ -206,7 +194,7 @@ impl Default for Environment {
             Parameters::Exact(1),
             Some("Return the name of the procedure."),
             |trace, mut values| {
-                if let Value::Proc(p) = unshift(&mut values) {
+                if let Value::Fn(p) = unshift(&mut values) {
                     Ok(p.name().into())
                 } else {
                     Err(trace.error("wrong-type-arg", None))

@@ -20,7 +20,8 @@ pub enum Value {
     Integer(Integer),
     String(Str),
     Symbol(Symbol),
-    Proc(Proc),
+    Fn(Proc),
+    Macro(Proc),
     List(Vector<Value>),
     Var(Var),
     Environment(Environment),
@@ -65,20 +66,12 @@ impl Value {
 
     #[inline]
     pub fn is_macro(&self) -> bool {
-        if let Value::Proc(p) = self {
-            p.is_macro()
-        } else {
-            false
-        }
+        matches!(self, Value::Macro(_))
     }
 
     #[inline]
     pub fn is_fn(&self) -> bool {
-        if let Value::Proc(p) = self {
-            !p.is_macro()
-        } else {
-            false
-        }
+        matches!(self, Value::Fn(_))
     }
 
     #[inline]
@@ -115,7 +108,7 @@ impl Value {
 
     pub fn apply(&self, trace: BTrace, mut args: Vector<Value>) -> Result<Value, Error> {
         match self {
-            Self::Proc(l) => {
+            Self::Fn(l) => {
                 if l.min_arity() > args.len() {
                     Err(trace.error("wrong-number-of-args", None))
                 } else {
@@ -140,7 +133,8 @@ impl Value {
             | Self::Character(_)
             | Self::Integer(_)
             | Self::String(_)
-            | Self::Proc(_)
+            | Self::Fn(_)
+            | Self::Macro(_)
             | Self::Var(_)
             | Self::Environment(_)
             | Self::Error(_) => Ok(self),
@@ -197,7 +191,8 @@ impl PartialEq for Value {
             (Self::Integer(l0), Self::Integer(r0)) => l0 == r0,
             (Self::String(l0), Self::String(r0)) => l0 == r0,
             (Self::Symbol(l0), Self::Symbol(r0)) => l0 == r0,
-            (Self::Proc(l0), Self::Proc(r0)) => l0 == r0,
+            (Self::Fn(l0), Self::Fn(r0)) => l0 == r0,
+            (Self::Macro(l0), Self::Macro(r0)) => l0 == r0,
             (Self::List(l0), Self::List(r0)) => l0 == r0,
             (Self::Var(l0), Self::Var(r0)) => l0 == r0,
             (Self::Environment(l0), Self::Environment(r0)) => l0 == r0,
@@ -282,13 +277,6 @@ impl From<Symbol> for Value {
     #[inline]
     fn from(value: Symbol) -> Self {
         Self::Symbol(value)
-    }
-}
-
-impl From<Proc> for Value {
-    #[inline]
-    fn from(value: Proc) -> Self {
-        Self::Proc(value)
     }
 }
 
@@ -377,7 +365,7 @@ impl fmt::Debug for Value {
             Self::Integer(i) => fmt::Debug::fmt(i, f),
             Self::String(s) => fmt::Debug::fmt(s, f),
             Self::Symbol(s) => fmt::Debug::fmt(s, f),
-            Self::Proc(l) => fmt::Debug::fmt(l, f),
+            Self::Fn(l) | Self::Macro(l) => fmt::Debug::fmt(l, f),
             Self::List(l) => print_list_debug(f, l.iter(), "(", ")"),
             Self::Var(v) => fmt::Debug::fmt(v, f),
             Self::Environment(e) => fmt::Debug::fmt(e, f),
@@ -402,7 +390,7 @@ impl fmt::Display for Value {
             Self::Integer(i) => fmt::Display::fmt(i, f),
             Self::String(s) => fmt::Display::fmt(s, f),
             Self::Symbol(s) => fmt::Display::fmt(s, f),
-            Self::Proc(l) => fmt::Debug::fmt(l, f),
+            Self::Fn(l) | Self::Macro(l) => fmt::Debug::fmt(l, f),
             Self::List(l) => print_list_display(f, l.iter(), "(", ")"),
             Self::Var(v) => fmt::Display::fmt(v, f),
             Self::Environment(v) => fmt::Display::fmt(v, f),

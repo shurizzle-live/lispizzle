@@ -41,8 +41,9 @@ impl Program {
 
         let mut value = exp.eval(trace, env.clone())?;
 
-        if let Value::Proc(ref mut proc) = value {
-            proc.set_name(name.clone());
+        match value {
+            Value::Macro(ref mut proc) | Value::Fn(ref mut proc) => proc.set_name(name.clone()),
+            _ => (),
         }
 
         env.define(name, value);

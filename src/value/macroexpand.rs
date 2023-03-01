@@ -38,12 +38,8 @@ fn _expand(me: Value, trace: BTrace, env: Environment) -> Result<Expanded1, Erro
         return Ok(Continue((Value::List(l), false)));
     };
 
-    let r#macro = if let Value::Proc(proc) = value {
-        if proc.is_macro() {
-            proc
-        } else {
-            return Ok(Continue((Value::List(l), false)));
-        }
+    let r#macro = if let Value::Macro(proc) = value {
+        proc
     } else {
         return Ok(Continue((Value::List(l), false)));
     };

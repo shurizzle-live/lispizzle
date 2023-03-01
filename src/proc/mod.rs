@@ -1,4 +1,6 @@
-use std::{fmt, num::NonZeroUsize, rc::Rc};
+mod native;
+
+use std::{fmt, num::NonZeroUsize};
 
 use im_rc::Vector;
 
@@ -14,162 +16,18 @@ pub enum Parameters<T1, T2> {
     Variadic(T2),
 }
 
-struct NativeProcRepr<T>
-where
-    T: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + ?Sized + 'static,
-{
-    parameters: Parameters<usize, NonZeroUsize>,
-    doc: Option<Str>,
-    fun: T,
-}
-
-#[allow(clippy::type_complexity)]
-impl<F> NativeProcRepr<F>
-where
-    F: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
-{
-    #[inline]
-    pub fn new(
-        parameters: Parameters<usize, NonZeroUsize>,
-        doc: Option<Str>,
-        fun: F,
-    ) -> Rc<NativeProcRepr<dyn Fn(BTrace, Vector<Value>) -> Result<Value, Error>>> {
-        Rc::new(NativeProcRepr {
-            parameters,
-            doc,
-            fun,
-        })
-    }
-}
-
-impl NativeProcRepr<dyn Fn(BTrace, Vector<Value>) -> Result<Value, Error>> {
-    #[inline]
-    pub fn doc(&self) -> Option<Str> {
-        self.doc.clone()
-    }
-
-    #[inline]
-    pub fn min_arity(&self) -> usize {
-        match self.parameters {
-            Parameters::Exact(n) => n,
-            Parameters::Variadic(n) => n.get() - 1,
-        }
-    }
-}
-
-impl Callable for Rc<NativeProcRepr<dyn Fn(BTrace, Vector<Value>) -> Result<Value, Error>>> {
-    #[inline(always)]
-    fn call(&self, trace: BTrace, parameters: Vector<Value>) -> Result<Value, Error> {
-        (self.fun)(trace, parameters)
-    }
-}
-
-#[allow(clippy::type_complexity)]
-struct NativeProc(Rc<NativeProcRepr<dyn Fn(BTrace, Vector<Value>) -> Result<Value, Error>>>);
-
-fn fmt_parameters<T, I>(
-    f: &mut fmt::Formatter<'_>,
-    variadic: bool,
-    len: usize,
-    iiter: I,
-) -> fmt::Result
-where
-    T: fmt::Display,
-    I: IntoIterator<Item = T>,
-{
-    let mut it = iiter.into_iter();
-    write!(f, "(")?;
-
-    if variadic {
-        if len > 0 {
-            let last = len - 1;
-
-            for (i, e) in it.enumerate() {
-                if i == 0 && i == last {
-                    write!(f, ". {}", e)?;
-                } else if i == 0 {
-                    write!(f, "{}", e)?;
-                } else if i == last {
-                    write!(f, " . {}", e)?;
-                } else {
-                    write!(f, " {}", e)?;
-                }
-            }
-        }
-    } else if let Some(e) = it.next() {
-        write!(f, "{}", e)?;
-        for e in it {
-            write!(f, " {}", e)?;
-        }
-    }
-
-    write!(f, ")")
-}
-
-impl NativeProc {
-    #[inline]
-    fn new<F>(parameters: Parameters<usize, NonZeroUsize>, doc: Option<Str>, fun: F) -> Self
-    where
-        F: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
-    {
-        Self(NativeProcRepr::new(parameters, doc, fun))
-    }
-
-    fn fmt_parameters(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0.parameters {
-            Parameters::Exact(n) => fmt_parameters(f, false, n, ["_"].into_iter().cycle().take(n)),
-            Parameters::Variadic(n) => {
-                fmt_parameters(f, true, n.get(), ["_"].into_iter().cycle().take(n.get()))
-            }
-        }
-    }
-
-    #[inline]
-    pub fn doc(&self) -> Option<Str> {
-        self.0.doc()
-    }
-
-    #[inline]
-    pub fn min_arity(&self) -> usize {
-        self.0.min_arity()
-    }
-}
-
-impl PartialEq for NativeProc {
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(&*self.0 as *const _, &*other.0 as *const _)
-    }
-}
-
-impl Eq for NativeProc {}
-
-impl Callable for NativeProc {
-    #[inline]
-    fn call(&self, trace: BTrace, parameters: Vector<Value>) -> Result<Value, Error> {
-        self.0.call(trace, parameters)
-    }
-}
-
-impl Clone for NativeProc {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self(Rc::clone(&self.0))
-    }
-}
-
 #[derive(Clone)]
-enum ProcRepr {
-    Native(NativeProc),
+enum Repr {
+    Native(native::NativeProc),
 }
 
-impl ProcRepr {
+impl Repr {
     #[inline]
     fn from_native<F>(parameters: Parameters<usize, NonZeroUsize>, doc: Option<Str>, fun: F) -> Self
     where
-        F: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
+        F: (std::ops::Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
     {
-        Self::Native(NativeProc::new(parameters, doc, fun))
+        Self::Native(native::NativeProc::new(parameters, doc, fun))
     }
 
     #[inline]
@@ -187,7 +45,7 @@ impl ProcRepr {
     }
 }
 
-impl Callable for ProcRepr {
+impl Callable for Repr {
     #[inline]
     fn call(&self, trace: BTrace, parameters: Vector<Value>) -> Result<Value, Error> {
         match self {
@@ -196,7 +54,7 @@ impl Callable for ProcRepr {
     }
 }
 
-impl PartialEq for ProcRepr {
+impl PartialEq for Repr {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Native(l0), Self::Native(r0)) => l0 == r0,
@@ -204,13 +62,12 @@ impl PartialEq for ProcRepr {
     }
 }
 
-impl Eq for ProcRepr {}
+impl Eq for Repr {}
 
 #[derive(Clone)]
 pub struct Proc {
     name: Option<Symbol>,
-    r#macro: bool,
-    repr: ProcRepr,
+    repr: Repr,
 }
 
 impl Proc {
@@ -218,16 +75,14 @@ impl Proc {
     pub fn from_native<F>(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<Str>,
-        r#macro: bool,
         fun: F,
     ) -> Self
     where
-        F: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
+        F: (std::ops::Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
     {
         Self {
             name: None,
-            r#macro,
-            repr: (ProcRepr::from_native(parameters, doc, fun)),
+            repr: (Repr::from_native(parameters, doc, fun)),
         }
     }
 
@@ -256,14 +111,9 @@ impl Proc {
         self.repr.min_arity()
     }
 
-    #[inline]
-    pub fn is_macro(&self) -> bool {
-        self.r#macro
-    }
-
     fn _addr(&self) -> usize {
         match &self.repr {
-            ProcRepr::Native(l) => &*l.0 as *const _ as *const u8 as usize,
+            Repr::Native(l) => &*l.0 as *const _ as *const u8 as usize,
         }
     }
 
@@ -310,7 +160,7 @@ impl fmt::Debug for Proc {
         }
 
         match &self.repr {
-            ProcRepr::Native(l) => l.fmt_parameters(f)?,
+            Repr::Native(l) => l.fmt_parameters(f)?,
         }
         write!(f, ">")
     }
@@ -323,7 +173,9 @@ mod tests {
     use im_rc::{vector, Vector};
     use rug::Integer;
 
-    use crate::{BTrace, Callable, Error, Parameters, Proc, Symbol, Value};
+    use super::Proc;
+
+    use crate::{BTrace, Callable, Error, Parameters, Symbol, Value};
 
     fn add(trace: BTrace, pars: Vector<Value>) -> Result<Value, Error> {
         let mut res = Integer::from(0);
@@ -345,7 +197,6 @@ mod tests {
         let lambda = Proc::from_native(
             Parameters::Variadic(NonZeroUsize::new(1).unwrap()),
             None,
-            false,
             add,
         );
         assert!(lambda == lambda);
@@ -374,7 +225,6 @@ mod tests {
             let mut lambda = Proc::from_native(
                 Parameters::Variadic(NonZeroUsize::new(1).unwrap()),
                 None,
-                false,
                 add,
             );
             assert_eq!(
@@ -388,7 +238,6 @@ mod tests {
             let mut lambda = Proc::from_native(
                 Parameters::Variadic(NonZeroUsize::new(2).unwrap()),
                 None,
-                false,
                 add,
             );
             assert_eq!(
@@ -399,7 +248,7 @@ mod tests {
             assert_eq!(format!("{:?}", lambda), "#<procedure test (_ . _)>");
         }
         {
-            let mut lambda = Proc::from_native(Parameters::Exact(2), None, false, add);
+            let mut lambda = Proc::from_native(Parameters::Exact(2), None, add);
             assert_eq!(
                 format!("{:?}", lambda),
                 format!("#<procedure {:x} (_ _)>", lambda.addr())
