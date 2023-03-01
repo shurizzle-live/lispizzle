@@ -2,18 +2,18 @@ use std::fmt;
 
 use im_rc::Vector;
 
-use crate::{BackTrace, Str, Value};
+use crate::{BTrace, Str, Value};
 
 #[derive(Debug, Clone)]
 pub struct Error {
     name: Str,
     args: Option<Vector<Value>>,
-    trace: BackTrace,
+    trace: BTrace,
 }
 
 impl Error {
     #[inline]
-    pub fn new(name: Str, args: Option<Vector<Value>>, trace: BackTrace) -> Self {
+    pub fn new(name: Str, args: Option<Vector<Value>>, trace: BTrace) -> Self {
         Self { name, args, trace }
     }
 
@@ -28,7 +28,7 @@ impl Error {
     }
 
     #[inline]
-    pub fn backtrace(&self) -> BackTrace {
+    pub fn backtrace(&self) -> BTrace {
         self.trace.clone()
     }
 }

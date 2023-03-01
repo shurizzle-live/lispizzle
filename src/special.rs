@@ -1,15 +1,22 @@
 use im_rc::{vector, Vector};
 
-use crate::{Environment, Error, Str, Symbol, Value};
+use crate::{BTrace, Environment, Error, Str, Symbol, Value};
 
 use std::mem;
 
-pub fn transform(env: Environment, name: Str, args: Vector<Value>) -> Option<Result<Value, Error>> {
+pub fn transform(
+    trace: BTrace,
+    env: Environment,
+    name: Str,
+    args: Vector<Value>,
+) -> Option<Result<Value, Error>> {
     match name.as_str() {
-        "quote" => Some(quote(env, args)),
-        "quasiquote" => Some(quasiquote(env, args)),
-        "if" => Some(iff(env, args)),
-        "set!" => Some(set_em_(env, args)),
+        "quote" => Some(quote(trace, env, args)),
+        "quasiquote" => Some(quasiquote(trace, env, args)),
+        "if" => Some(iff(trace, env, args)),
+        "set!" => Some(set_em_(trace, env, args)),
+        "current-environment" => Some(current_environment(trace, env, args)),
+        "macroexpand" => Some(macroexpand(trace, env, args)),
         _ => None,
     }
 }
@@ -24,17 +31,17 @@ fn grab(args: &mut Vector<Value>, n: usize) -> Value {
     args.remove(n)
 }
 
-fn quote(env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn quote(trace: BTrace, _env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() == 1 {
         Ok(unshift(&mut args))
     } else {
-        Err(env.error("syntax-error", None))
+        Err(trace.error("syntax-error", None))
     }
 }
 
-fn quasiquote(env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn quasiquote(trace: BTrace, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() != 1 {
-        return Err(env.error("syntax-error", None));
+        return Err(trace.error("syntax-error", None));
     }
 
     enum Res {
@@ -42,18 +49,18 @@ fn quasiquote(env: Environment, mut args: Vector<Value>) -> Result<Value, Error>
         Splice(Vector<Value>),
     }
 
-    fn scan(env: Environment, v: Value) -> Result<Res, Error> {
+    fn scan(trace: BTrace, env: Environment, v: Value) -> Result<Res, Error> {
         if let Value::List(mut list) = v {
             if let Some(Value::Symbol(Symbol::Name(name))) = list.get(0) {
                 if name == "unquote" {
                     return if list.len() == 2 {
-                        grab(&mut list, 1).eval(env).map(Res::Value)
+                        grab(&mut list, 1).eval(trace, env).map(Res::Value)
                     } else {
-                        Err(env.error("syntax-error", None))
+                        Err(trace.error("syntax-error", None))
                     };
                 } else if name == "unquote-splicing" {
                     return if list.len() == 2 {
-                        grab(&mut list, 1).eval(env).map(|x| {
+                        grab(&mut list, 1).eval(trace, env).map(|x| {
                             if let Value::List(l) = x {
                                 Res::Splice(l)
                             } else {
@@ -61,7 +68,7 @@ fn quasiquote(env: Environment, mut args: Vector<Value>) -> Result<Value, Error>
                             }
                         })
                     } else {
-                        Err(env.error("syntax-error", None))
+                        Err(trace.error("syntax-error", None))
                     };
                 }
             }
@@ -70,7 +77,7 @@ fn quasiquote(env: Environment, mut args: Vector<Value>) -> Result<Value, Error>
             while i < list.len() {
                 let mut v = Value::Nil;
                 mem::swap(&mut v, &mut list[i]);
-                match scan(env.clone(), v)? {
+                match scan(trace.clone(), env.clone(), v)? {
                     Res::Value(mut v) => {
                         mem::swap(&mut list[i], &mut v);
                     }
@@ -90,45 +97,81 @@ fn quasiquote(env: Environment, mut args: Vector<Value>) -> Result<Value, Error>
         }
     }
 
-    match scan(env.clone(), unshift(&mut args))? {
+    match scan(trace.clone(), env, unshift(&mut args))? {
         Res::Value(v) => Ok(v),
-        _ => Err(env.error("syntax-error", None)),
+        _ => Err(trace.error("syntax-error", None)),
     }
 }
 
-fn iff(env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn iff(trace: BTrace, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() == 2 {
-        if unshift(&mut args).eval(env.clone())?.to_bool() {
-            unshift(&mut args).eval(env)
+        if unshift(&mut args)
+            .eval(trace.clone(), env.clone())?
+            .to_bool()
+        {
+            unshift(&mut args).eval(trace, env)
         } else {
             Ok(Value::Unspecified)
         }
     } else if args.len() == 3 {
-        if unshift(&mut args).eval(env.clone())?.to_bool() {
-            grab(&mut args, 0).eval(env)
+        if unshift(&mut args)
+            .eval(trace.clone(), env.clone())?
+            .to_bool()
+        {
+            grab(&mut args, 0).eval(trace, env)
         } else {
-            grab(&mut args, 1).eval(env)
+            grab(&mut args, 1).eval(trace, env)
         }
     } else {
-        Err(env.error("syntax-error", None))
+        Err(trace.error("syntax-error", None))
     }
 }
 
-fn set_em_(env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn set_em_(trace: BTrace, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() == 2 {
         let key = if let Value::Symbol(s) = unshift(&mut args) {
             s
         } else {
-            return Err(env.error("syntax-error", None));
+            return Err(trace.error("syntax-error", None));
         };
 
-        let value = unshift(&mut args).eval(env.clone())?;
+        let value = unshift(&mut args).eval(trace.clone(), env.clone())?;
         if env.set(&key, value).is_ok() {
             Ok(Value::Unspecified)
         } else {
-            Err(env.error("unbound-variable", vector![key.into()].into()))
+            Err(trace.error("unbound-variable", vector![key.into()].into()))
         }
     } else {
-        Err(env.error("syntax-error", None))
+        Err(trace.error("syntax-error", None))
     }
+}
+
+fn current_environment(
+    trace: BTrace,
+    env: Environment,
+    args: Vector<Value>,
+) -> Result<Value, Error> {
+    if args.is_empty() {
+        Ok(Value::Environment(env))
+    } else {
+        Err(trace.error("syntax-error", None))
+    }
+}
+
+fn macroexpand(trace: BTrace, oenv: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+    let env = if args.len() == 1 {
+        oenv
+    } else if args.len() == 2 {
+        if let Value::Environment(env) = args.remove(1).eval(trace.clone(), oenv)? {
+            env
+        } else {
+            return Err(trace.error("wrong-type-arg", None));
+        }
+    } else {
+        return Err(trace.error("syntax-error", None));
+    };
+
+    args.remove(0)
+        .eval(trace.clone(), env.clone())?
+        .macroexpand(trace, env)
 }

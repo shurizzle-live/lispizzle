@@ -1,8 +1,8 @@
-use std::fmt;
+use std::{fmt, rc::Rc};
 
 use im_rc::Vector;
 
-use crate::Symbol;
+use crate::{Error, Str, Symbol, Value};
 
 #[derive(Debug, Clone)]
 enum TraceFrameRepr {
@@ -13,6 +13,93 @@ enum TraceFrameRepr {
 
 #[derive(Debug, Clone)]
 pub struct TraceFrame(TraceFrameRepr);
+
+struct BackTraceRepr {
+    parent: Option<Rc<BackTraceRepr>>,
+    frame: TraceFrame,
+}
+
+pub struct BTrace(Rc<BackTraceRepr>);
+
+impl BTrace {
+    #[inline]
+    pub fn new() -> Self {
+        Self(Rc::new(BackTraceRepr {
+            parent: None,
+            frame: TraceFrame::main(),
+        }))
+    }
+
+    #[inline]
+    pub fn current(&self) -> TraceFrame {
+        self.0.frame.clone()
+    }
+
+    pub fn parent(&self) -> Option<Self> {
+        self.0.parent.as_ref().map(Rc::clone).map(Self)
+    }
+
+    #[inline]
+    pub fn error<S: Into<Str>>(self, name: S, args: Option<Vector<Value>>) -> Error {
+        Error::new(name.into(), args, self)
+    }
+
+    #[inline]
+    pub fn with_frame(&self, frame: TraceFrame) -> Self {
+        Self(Rc::new(BackTraceRepr {
+            parent: Some(Rc::clone(&self.0)),
+            frame,
+        }))
+    }
+}
+
+pub struct IntoIter {
+    inner: Option<BTrace>,
+}
+
+impl Iterator for IntoIter {
+    type Item = TraceFrame;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let trace = self.inner.take()?;
+
+        let res = trace.current();
+        self.inner = trace.parent();
+        Some(res)
+    }
+}
+
+impl IntoIterator for BTrace {
+    type Item = TraceFrame;
+
+    type IntoIter = IntoIter;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter { inner: Some(self) }
+    }
+}
+
+impl Default for BTrace {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Clone for BTrace {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self(Rc::clone(&self.0))
+    }
+}
+
+impl fmt::Debug for BTrace {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "#<backtrace>")
+    }
+}
 
 pub type BackTrace = Vector<TraceFrame>;
 

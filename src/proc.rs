@@ -2,10 +2,10 @@ use std::{fmt, num::NonZeroUsize, rc::Rc};
 
 use im_rc::Vector;
 
-use crate::{Environment, Error, Str, Symbol, TraceFrame, Value};
+use crate::{BTrace, Error, Str, Symbol, TraceFrame, Value};
 
 pub trait Callable {
-    fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error>;
+    fn call(&self, trace: BTrace, parameters: Vector<Value>) -> Result<Value, Error>;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -16,7 +16,7 @@ pub enum Parameters<T1, T2> {
 
 struct NativeProcRepr<T>
 where
-    T: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + ?Sized + 'static,
+    T: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + ?Sized + 'static,
 {
     parameters: Parameters<usize, NonZeroUsize>,
     doc: Option<Str>,
@@ -26,14 +26,14 @@ where
 #[allow(clippy::type_complexity)]
 impl<F> NativeProcRepr<F>
 where
-    F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static,
+    F: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
 {
     #[inline]
     pub fn new(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<Str>,
         fun: F,
-    ) -> Rc<NativeProcRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>>> {
+    ) -> Rc<NativeProcRepr<dyn Fn(BTrace, Vector<Value>) -> Result<Value, Error>>> {
         Rc::new(NativeProcRepr {
             parameters,
             doc,
@@ -42,7 +42,7 @@ where
     }
 }
 
-impl NativeProcRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>> {
+impl NativeProcRepr<dyn Fn(BTrace, Vector<Value>) -> Result<Value, Error>> {
     #[inline]
     pub fn doc(&self) -> Option<Str> {
         self.doc.clone()
@@ -57,15 +57,15 @@ impl NativeProcRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>> 
     }
 }
 
-impl Callable for Rc<NativeProcRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>>> {
+impl Callable for Rc<NativeProcRepr<dyn Fn(BTrace, Vector<Value>) -> Result<Value, Error>>> {
     #[inline(always)]
-    fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
-        (self.fun)(env, parameters)
+    fn call(&self, trace: BTrace, parameters: Vector<Value>) -> Result<Value, Error> {
+        (self.fun)(trace, parameters)
     }
 }
 
 #[allow(clippy::type_complexity)]
-struct NativeProc(Rc<NativeProcRepr<dyn Fn(Environment, Vector<Value>) -> Result<Value, Error>>>);
+struct NativeProc(Rc<NativeProcRepr<dyn Fn(BTrace, Vector<Value>) -> Result<Value, Error>>>);
 
 fn fmt_parameters<T, I>(
     f: &mut fmt::Formatter<'_>,
@@ -110,7 +110,7 @@ impl NativeProc {
     #[inline]
     fn new<F>(parameters: Parameters<usize, NonZeroUsize>, doc: Option<Str>, fun: F) -> Self
     where
-        F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static,
+        F: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
     {
         Self(NativeProcRepr::new(parameters, doc, fun))
     }
@@ -146,8 +146,8 @@ impl Eq for NativeProc {}
 
 impl Callable for NativeProc {
     #[inline]
-    fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
-        self.0.call(env, parameters)
+    fn call(&self, trace: BTrace, parameters: Vector<Value>) -> Result<Value, Error> {
+        self.0.call(trace, parameters)
     }
 }
 
@@ -167,7 +167,7 @@ impl ProcRepr {
     #[inline]
     fn from_native<F>(parameters: Parameters<usize, NonZeroUsize>, doc: Option<Str>, fun: F) -> Self
     where
-        F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static,
+        F: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
     {
         Self::Native(NativeProc::new(parameters, doc, fun))
     }
@@ -189,9 +189,9 @@ impl ProcRepr {
 
 impl Callable for ProcRepr {
     #[inline]
-    fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
+    fn call(&self, trace: BTrace, parameters: Vector<Value>) -> Result<Value, Error> {
         match self {
-            Self::Native(f) => f.call(env, parameters),
+            Self::Native(f) => f.call(trace, parameters),
         }
     }
 }
@@ -222,7 +222,7 @@ impl Proc {
         fun: F,
     ) -> Self
     where
-        F: (Fn(Environment, Vector<Value>) -> Result<Value, Error>) + 'static,
+        F: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
     {
         Self {
             name: None,
@@ -274,7 +274,7 @@ impl Proc {
     }
 
     #[inline]
-    pub fn trace(&self) -> TraceFrame {
+    pub fn frame(&self) -> TraceFrame {
         if let Some(name) = self.name() {
             TraceFrame::named(self._addr(), name)
         } else {
@@ -285,9 +285,8 @@ impl Proc {
 
 impl Callable for Proc {
     #[inline]
-    fn call(&self, env: Environment, parameters: Vector<Value>) -> Result<Value, Error> {
-        self.repr
-            .call(env.with_trace::<Symbol, _>([], self.trace()), parameters)
+    fn call(&self, trace: BTrace, parameters: Vector<Value>) -> Result<Value, Error> {
+        self.repr.call(trace.with_frame(self.frame()), parameters)
     }
 }
 
@@ -324,16 +323,16 @@ mod tests {
     use im_rc::{vector, Vector};
     use rug::Integer;
 
-    use crate::{Callable, Environment, Error, Parameters, Proc, Symbol, Value};
+    use crate::{BTrace, Callable, Error, Parameters, Proc, Symbol, Value};
 
-    fn add(env: Environment, pars: Vector<Value>) -> Result<Value, Error> {
+    fn add(trace: BTrace, pars: Vector<Value>) -> Result<Value, Error> {
         let mut res = Integer::from(0);
 
         for e in pars {
             if let Value::Integer(i) = e {
                 res.add_assign(i);
             } else {
-                return Err(env.error("wrong-type-arg", None));
+                return Err(trace.error("wrong-type-arg", None));
             }
         }
 
@@ -342,7 +341,7 @@ mod tests {
 
     #[test]
     fn run() {
-        let env = Environment::new();
+        let trace = BTrace::new();
         let lambda = Proc::from_native(
             Parameters::Variadic(NonZeroUsize::new(1).unwrap()),
             None,
@@ -350,20 +349,20 @@ mod tests {
             add,
         );
         assert!(lambda == lambda);
-        assert_eq!(lambda.call(env.clone(), vector![]).unwrap(), 0.into());
+        assert_eq!(lambda.call(trace.clone(), vector![]).unwrap(), 0.into());
         assert_eq!(
-            lambda.call(env.clone(), vector![1.into()]).unwrap(),
+            lambda.call(trace.clone(), vector![1.into()]).unwrap(),
             1.into()
         );
         assert_eq!(
             lambda
-                .call(env.clone(), vector![1.into(), 2.into()])
+                .call(trace.clone(), vector![1.into(), 2.into()])
                 .unwrap(),
             3.into()
         );
         assert_eq!(
             lambda
-                .call(env, vector![1.into(), 2.into(), 3.into()])
+                .call(trace, vector![1.into(), 2.into(), 3.into()])
                 .unwrap(),
             6.into()
         );

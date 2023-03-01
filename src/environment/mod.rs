@@ -9,9 +9,7 @@ use std::{
     rc::Rc,
 };
 
-use im_rc::Vector;
-
-use crate::{BackTrace, Error, Str, Symbol, TraceFrame, Value, Var};
+use crate::{Symbol, Value, Var};
 
 use bag::Bag;
 
@@ -19,7 +17,6 @@ struct EnvironmentRepr {
     parent: Option<Rc<RefCell<EnvironmentRepr>>>,
     gensym: usize,
     bag: Bag,
-    trace: Option<TraceFrame>,
 }
 
 impl EnvironmentRepr {
@@ -78,27 +75,6 @@ impl EnvironmentRepr {
         self.gensym += 1;
         sym
     }
-
-    #[inline]
-    pub fn trace(&self) -> Option<TraceFrame> {
-        self.trace.clone()
-    }
-
-    fn write_trace(&self, bt: &mut BackTrace) {
-        if let Some(trace) = self.trace() {
-            bt.push_back(trace);
-        }
-        if let Some(parent) = self.parent() {
-            parent.write_trace(bt);
-        }
-    }
-
-    #[inline]
-    pub fn backtrace(&self) -> BackTrace {
-        let mut backtrace = BackTrace::new();
-        self.write_trace(&mut backtrace);
-        backtrace
-    }
 }
 
 #[derive(Clone)]
@@ -110,11 +86,10 @@ impl Environment {
             parent: None,
             gensym: 0,
             bag: Bag::new(),
-            trace: Some(TraceFrame::main()),
         })))
     }
 
-    fn _child<S, I>(&self, names: I, trace: Option<TraceFrame>) -> Self
+    pub fn child<S, I>(&self, names: I) -> Self
     where
         S: Into<Symbol>,
         I: IntoIterator<Item = S>,
@@ -123,26 +98,7 @@ impl Environment {
             parent: Some(Rc::clone(&self.0)),
             gensym: 0,
             bag: names.into_iter().collect(),
-            trace,
         })))
-    }
-
-    #[inline]
-    pub fn child<S, I>(&self, names: I) -> Self
-    where
-        S: Into<Symbol>,
-        I: IntoIterator<Item = S>,
-    {
-        self._child(names, None)
-    }
-
-    #[inline]
-    pub fn with_trace<S, I>(&self, names: I, trace: TraceFrame) -> Self
-    where
-        S: Into<Symbol>,
-        I: IntoIterator<Item = S>,
-    {
-        self._child(names, Some(trace))
     }
 
     #[inline]
@@ -163,26 +119,6 @@ impl Environment {
     #[inline]
     pub fn generate(&self) -> Symbol {
         RefCell::borrow_mut(&*self.0).generate()
-    }
-
-    #[inline]
-    pub fn trace(&self) -> Option<TraceFrame> {
-        RefCell::borrow(&*self.0).trace()
-    }
-
-    #[inline]
-    pub fn backtrace(&self) -> BackTrace {
-        RefCell::borrow(&*self.0).backtrace()
-    }
-
-    #[inline]
-    pub fn backtrace_from(&self, bt: &mut BackTrace) {
-        RefCell::borrow(&*self.0).write_trace(bt)
-    }
-
-    #[inline]
-    pub fn error<S: Into<Str>>(&self, name: S, args: Option<Vector<Value>>) -> Error {
-        Error::new(name.into(), args, self.backtrace())
     }
 }
 
@@ -218,17 +154,18 @@ mod tests {
     use im_rc::vector;
     use rug::Integer;
 
-    use crate::{Environment, Symbol, Value};
+    use crate::{BTrace, Environment, Symbol, Value};
 
     #[test]
     fn plus() {
+        let trace = BTrace::new();
         let env = Environment::default();
 
         assert_eq!(
             env.get(Symbol::Name("+".into()))
                 .unwrap()
                 .get()
-                .apply(env.clone(), vector![])
+                .apply(trace.clone(), vector![])
                 .unwrap(),
             Integer::from(0).into()
         );
@@ -237,7 +174,7 @@ mod tests {
             env.get(Symbol::Name("+".into()))
                 .unwrap()
                 .get()
-                .apply(env.clone(), vector![Integer::from(69).into()])
+                .apply(trace.clone(), vector![Integer::from(69).into()])
                 .unwrap(),
             Integer::from(69).into()
         );
@@ -246,7 +183,7 @@ mod tests {
             env.get(Symbol::Name("+".into()))
                 .unwrap()
                 .get()
-                .apply(env.clone(), vector![Value::String("ciao".into())])
+                .apply(trace.clone(), vector![Value::String("ciao".into())])
                 .unwrap(),
             Value::String("ciao".into())
         );
@@ -256,7 +193,7 @@ mod tests {
                 .unwrap()
                 .get()
                 .apply(
-                    env.clone(),
+                    trace.clone(),
                     vector![Integer::from(34).into(), Integer::from(35).into()]
                 )
                 .unwrap(),
@@ -268,7 +205,7 @@ mod tests {
             .unwrap()
             .get()
             .apply(
-                env,
+                trace,
                 vector![Integer::from(69).into(), Value::String("ciao".into())]
             )
             .is_err());
@@ -276,6 +213,7 @@ mod tests {
 
     #[test]
     fn list() {
+        let trace = BTrace::new();
         let env = Environment::default();
 
         let l = vector![1.into(), 2.into(), 3.into()];
@@ -283,7 +221,7 @@ mod tests {
             env.get(Symbol::Name("list".into()))
                 .unwrap()
                 .get()
-                .apply(env, l.clone())
+                .apply(trace, l.clone())
                 .unwrap(),
             l.into()
         );

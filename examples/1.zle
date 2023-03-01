@@ -17,13 +17,6 @@
   "="
   (eval '(+ (- 1 2) 3) (current-environment)))
 
-;; test primitive-eval (no need to pass the environment)
-(println
-  "primitive-eval"
-  '(+ (- 1 2) 3)
-  "="
-  (primitive-eval '(+ (- 1 2) 3)))
-
 ;; test quasiquote with unquote
 (println "`(1 2 ,(+ 1 2)) =" `(1 2 ,(+ 1 2)))
 

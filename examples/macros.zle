@@ -1,0 +1,7 @@
+(define x 2)
+
+(println (primitive-eval '(+ x 1)))
+
+(println (macroexpand '(primitive-eval '(+ x 1))))
+
+;; vim:ft=scheme

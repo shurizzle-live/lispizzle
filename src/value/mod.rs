@@ -1,4 +1,6 @@
-use std::{fmt, mem};
+mod macroexpand;
+
+use std::fmt;
 
 use im_rc::{vector, Vector};
 use rug::Integer;
@@ -6,7 +8,7 @@ use rug::Integer;
 use crate::{
     special::transform,
     util::{print_list_debug, print_list_display},
-    Callable, Environment, Error, Proc, Str, Symbol, Var,
+    BTrace, Callable, Environment, Error, Proc, Str, Symbol, Var,
 };
 
 #[derive(Clone)]
@@ -99,38 +101,38 @@ impl Value {
         matches!(self, Value::Error(_))
     }
 
-    pub fn element_at(&self, env: Environment, i: &Integer) -> Result<Value, Error> {
+    pub fn element_at(&self, trace: BTrace, i: &Integer) -> Result<Value, Error> {
         if let Some(i) = i.to_usize() {
             match self {
                 Self::List(l) => Ok(l.get(i).cloned().unwrap_or(Value::Nil)),
                 Self::String(s) => Ok(s.char_at(i).map(Self::from).unwrap_or(Value::Nil)),
-                _ => Err(env.error("wrong-type-arg", None)),
+                _ => Err(trace.error("wrong-type-arg", None)),
             }
         } else {
             Ok(Value::Nil)
         }
     }
 
-    pub fn apply(&self, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+    pub fn apply(&self, trace: BTrace, mut args: Vector<Value>) -> Result<Value, Error> {
         match self {
             Self::Proc(l) => {
                 if l.min_arity() > args.len() {
-                    Err(env.error("wrong-number-of-args", None))
+                    Err(trace.error("wrong-number-of-args", None))
                 } else {
-                    l.call(env, args)
+                    l.call(trace, args)
                 }
             }
             Self::Integer(i) => {
                 if args.len() != 1 {
-                    return Err(env.error("wrong-number-of-args", None));
+                    return Err(trace.error("wrong-number-of-args", None));
                 }
-                unsafe { args.pop_front().unwrap_unchecked() }.element_at(env, i)
+                unsafe { args.pop_front().unwrap_unchecked() }.element_at(trace, i)
             }
-            _ => Err(env.error("wrong-type-arg", None)),
+            _ => Err(trace.error("wrong-type-arg", None)),
         }
     }
 
-    pub fn eval(self, env: Environment) -> Result<Value, Error> {
+    pub fn eval(self, trace: BTrace, env: Environment) -> Result<Value, Error> {
         match self {
             Self::Unspecified
             | Self::Nil
@@ -145,95 +147,39 @@ impl Value {
             Self::Symbol(sym) => env
                 .get(sym.clone())
                 .map(|v| v.get())
-                .ok_or_else(|| env.error("unbound-variable", Some(vector![Self::Symbol(sym)]))),
+                .ok_or_else(|| trace.error("unbound-variable", Some(vector![Self::Symbol(sym)]))),
             Self::List(mut l) => {
                 if let Some(first) = l.pop_front() {
                     if let Self::Symbol(Symbol::Name(ref s)) = first {
-                        if let Some(res) = transform(env.clone(), s.clone(), l.clone()) {
+                        if let Some(res) =
+                            transform(trace.clone(), env.clone(), s.clone(), l.clone())
+                        {
                             return res;
                         }
                     }
 
-                    let resolved = first.eval(env.clone())?;
+                    let resolved = first.eval(trace.clone(), env.clone())?;
 
                     if resolved.is_macro() {
-                        Err(env.error("wrong-type-arg", None))
+                        Err(trace.error("wrong-type-arg", None))
                     } else {
                         let args = l
                             .into_iter()
-                            .map(|v| v.eval(env.clone()))
+                            .map(|v| v.eval(trace.clone(), env.clone()))
                             .collect::<Result<Vector<_>, Error>>()?;
 
-                        resolved.apply(env, args)
+                        resolved.apply(trace, args)
                     }
                 } else {
-                    Err(env.error("syntax-error", None))
+                    Err(trace.error("syntax-error", None))
                 }
             }
         }
     }
 
-    fn _macroexpand(self, env: Environment) -> Result<(Value, bool), Error> {
-        let mut l = match self {
-            Self::List(l) => l,
-            _ => return Ok((self, false)),
-        };
-
-        let value = if let Some(Self::Symbol(sym)) = l.get(0) {
-            if let Some(var) = env.get(sym) {
-                var.get()
-            } else {
-                return Ok((Self::List(l), false));
-            }
-        } else {
-            return Ok((Self::List(l), false));
-        };
-
-        let r#macro = if let Self::Proc(proc) = value {
-            if proc.is_macro() {
-                proc
-            } else {
-                return Ok((Self::List(l), false));
-            }
-        } else {
-            return Ok((Self::List(l), false));
-        };
-
-        l.remove(0);
-        r#macro.call(env, l).map(|x| (x, true))
-    }
-
     #[inline(always)]
-    fn _macroexpand1(self, env: Environment) -> Result<Value, Error> {
-        let mut me = self;
-        while {
-            let expanded;
-            (me, expanded) = me._macroexpand(env.clone())?;
-            expanded
-        } {}
-        Ok(me)
-    }
-
-    pub fn macroexpand(self, env: Environment) -> Result<Value, Error> {
-        let me = self._macroexpand1(env.clone())?;
-        let mut me = if let Value::List(me) = me {
-            me
-        } else {
-            return Ok(me);
-        };
-
-        let mut i = 0;
-        while i < me.len() {
-            let mut exp = Value::Nil;
-            mem::swap(&mut exp, unsafe { me.get_mut(i).unwrap_unchecked() });
-
-            exp = exp.macroexpand(env.clone())?;
-
-            mem::swap(&mut exp, unsafe { me.get_mut(i).unwrap_unchecked() });
-            i += 1;
-        }
-
-        Ok(Value::List(me))
+    pub fn macroexpand(self, trace: BTrace, env: Environment) -> Result<Value, Error> {
+        self::macroexpand::macroexpand(self, trace, env)
     }
 
     pub fn to_bool(&self) -> bool {

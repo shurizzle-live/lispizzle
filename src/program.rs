@@ -1,4 +1,4 @@
-use crate::{Environment, Error, Symbol, Value};
+use crate::{BTrace, Environment, Error, Symbol, Value};
 
 pub struct Program(Vec<Value>);
 
@@ -7,7 +7,7 @@ impl Program {
         Self(exprs)
     }
 
-    fn filter_define(env: Environment, exp: Value) -> Result<Option<Value>, Error> {
+    fn filter_define(trace: BTrace, env: Environment, exp: Value) -> Result<Option<Value>, Error> {
         let mut list = if let Value::List(list) = exp {
             list
         } else {
@@ -30,16 +30,16 @@ impl Program {
                 unsafe { args.pop_front().unwrap_unchecked() },
                 args.pop_front().unwrap_or(Value::Unspecified),
             ),
-            _ => return Err(env.error("syntax-error", None)),
+            _ => return Err(trace.error("syntax-error", None)),
         };
 
         let name = if let Value::Symbol(sym) = name {
             sym
         } else {
-            return Err(env.error("syntax-error", None));
+            return Err(trace.error("syntax-error", None));
         };
 
-        let mut value = exp.eval(env.clone())?;
+        let mut value = exp.eval(trace, env.clone())?;
 
         if let Value::Proc(ref mut proc) = value {
             proc.set_name(name.clone());
@@ -50,13 +50,13 @@ impl Program {
         Ok(None)
     }
 
-    pub fn eval(&self, env: Environment) -> Result<Value, Error> {
+    pub fn eval(&self, trace: BTrace, env: Environment) -> Result<Value, Error> {
         let mut last = Value::Unspecified;
         for exp in self.0.iter() {
-            let exp = exp.clone().macroexpand(env.clone())?;
+            let exp = exp.clone().macroexpand(trace.clone(), env.clone())?;
 
-            if let Some(exp) = Self::filter_define(env.clone(), exp)? {
-                last = exp.eval(env.clone())?;
+            if let Some(exp) = Self::filter_define(trace.clone(), env.clone(), exp)? {
+                last = exp.eval(trace.clone(), env.clone())?;
             }
         }
 
