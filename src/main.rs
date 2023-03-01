@@ -1,6 +1,6 @@
 use lispizzle::{
     parser::{parse_from_file, FileParseError},
-    BTrace, Environment, Program,
+    BackTrace, Environment, Program,
 };
 
 extern crate lispizzle;
@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let prog = Program::new(code);
 
-    match prog.eval(BTrace::new(), Environment::default()) {
+    match prog.eval(BackTrace::new(), Environment::default()) {
         Ok(_) => (),
         Err(err) => {
             println!("{:#?}", err);

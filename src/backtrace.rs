@@ -19,9 +19,9 @@ struct BackTraceRepr {
     frame: TraceFrame,
 }
 
-pub struct BTrace(Rc<BackTraceRepr>);
+pub struct BackTrace(Rc<BackTraceRepr>);
 
-impl BTrace {
+impl BackTrace {
     #[inline]
     pub fn new() -> Self {
         Self(Rc::new(BackTraceRepr {
@@ -54,7 +54,7 @@ impl BTrace {
 }
 
 pub struct IntoIter {
-    inner: Option<BTrace>,
+    inner: Option<BackTrace>,
 }
 
 impl Iterator for IntoIter {
@@ -69,7 +69,7 @@ impl Iterator for IntoIter {
     }
 }
 
-impl IntoIterator for BTrace {
+impl IntoIterator for BackTrace {
     type Item = TraceFrame;
 
     type IntoIter = IntoIter;
@@ -80,28 +80,26 @@ impl IntoIterator for BTrace {
     }
 }
 
-impl Default for BTrace {
+impl Default for BackTrace {
     #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Clone for BTrace {
+impl Clone for BackTrace {
     #[inline]
     fn clone(&self) -> Self {
         Self(Rc::clone(&self.0))
     }
 }
 
-impl fmt::Debug for BTrace {
+impl fmt::Debug for BackTrace {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#<backtrace>")
     }
 }
-
-pub type BackTrace = Vector<TraceFrame>;
 
 impl TraceFrame {
     pub const fn main() -> Self {

@@ -1,4 +1,4 @@
-use crate::{BTrace, Environment, Error, Symbol, Value};
+use crate::{BackTrace, Environment, Error, Symbol, Value};
 
 pub struct Program(Vec<Value>);
 
@@ -7,7 +7,11 @@ impl Program {
         Self(exprs)
     }
 
-    fn filter_define(trace: BTrace, env: Environment, exp: Value) -> Result<Option<Value>, Error> {
+    fn filter_define(
+        trace: BackTrace,
+        env: Environment,
+        exp: Value,
+    ) -> Result<Option<Value>, Error> {
         let mut list = if let Value::List(list) = exp {
             list
         } else {
@@ -51,7 +55,7 @@ impl Program {
         Ok(None)
     }
 
-    pub fn eval(&self, trace: BTrace, env: Environment) -> Result<Value, Error> {
+    pub fn eval(&self, trace: BackTrace, env: Environment) -> Result<Value, Error> {
         let mut last = Value::Unspecified;
         for exp in self.0.iter() {
             let exp = exp.clone().macroexpand(trace.clone(), env.clone())?;

@@ -8,7 +8,7 @@ use rug::Integer;
 use crate::{
     special::transform,
     util::{print_list_debug, print_list_display},
-    BTrace, Callable, Environment, Error, Proc, Str, Symbol, Var,
+    BackTrace, Callable, Environment, Error, Proc, Str, Symbol, Var,
 };
 
 #[derive(Clone)]
@@ -94,7 +94,7 @@ impl Value {
         matches!(self, Value::Error(_))
     }
 
-    pub fn element_at(&self, trace: BTrace, i: &Integer) -> Result<Value, Error> {
+    pub fn element_at(&self, trace: BackTrace, i: &Integer) -> Result<Value, Error> {
         if let Some(i) = i.to_usize() {
             match self {
                 Self::List(l) => Ok(l.get(i).cloned().unwrap_or(Value::Nil)),
@@ -106,7 +106,7 @@ impl Value {
         }
     }
 
-    pub fn apply(&self, trace: BTrace, mut args: Vector<Value>) -> Result<Value, Error> {
+    pub fn apply(&self, trace: BackTrace, mut args: Vector<Value>) -> Result<Value, Error> {
         match self {
             Self::Fn(l) => {
                 if l.min_arity() > args.len() {
@@ -125,7 +125,7 @@ impl Value {
         }
     }
 
-    pub fn eval(self, trace: BTrace, env: Environment) -> Result<Value, Error> {
+    pub fn eval(self, trace: BackTrace, env: Environment) -> Result<Value, Error> {
         match self {
             Self::Unspecified
             | Self::Nil
@@ -172,7 +172,7 @@ impl Value {
     }
 
     #[inline(always)]
-    pub fn macroexpand(self, trace: BTrace, env: Environment) -> Result<Value, Error> {
+    pub fn macroexpand(self, trace: BackTrace, env: Environment) -> Result<Value, Error> {
         self::macroexpand::macroexpand(self, trace, env)
     }
 

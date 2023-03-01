@@ -4,10 +4,10 @@ use std::{fmt, num::NonZeroUsize};
 
 use im_rc::Vector;
 
-use crate::{BTrace, Error, Str, Symbol, TraceFrame, Value};
+use crate::{BackTrace, Error, Str, Symbol, TraceFrame, Value};
 
 pub trait Callable {
-    fn call(&self, trace: BTrace, parameters: Vector<Value>) -> Result<Value, Error>;
+    fn call(&self, trace: BackTrace, parameters: Vector<Value>) -> Result<Value, Error>;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -25,7 +25,7 @@ impl Repr {
     #[inline]
     fn from_native<F>(parameters: Parameters<usize, NonZeroUsize>, doc: Option<Str>, fun: F) -> Self
     where
-        F: (std::ops::Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
+        F: (std::ops::Fn(BackTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
     {
         Self::Native(native::NativeProc::new(parameters, doc, fun))
     }
@@ -47,7 +47,7 @@ impl Repr {
 
 impl Callable for Repr {
     #[inline]
-    fn call(&self, trace: BTrace, parameters: Vector<Value>) -> Result<Value, Error> {
+    fn call(&self, trace: BackTrace, parameters: Vector<Value>) -> Result<Value, Error> {
         match self {
             Self::Native(f) => f.call(trace, parameters),
         }
@@ -78,7 +78,7 @@ impl Proc {
         fun: F,
     ) -> Self
     where
-        F: (std::ops::Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
+        F: (std::ops::Fn(BackTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
     {
         Self {
             name: None,
@@ -135,7 +135,7 @@ impl Proc {
 
 impl Callable for Proc {
     #[inline]
-    fn call(&self, trace: BTrace, parameters: Vector<Value>) -> Result<Value, Error> {
+    fn call(&self, trace: BackTrace, parameters: Vector<Value>) -> Result<Value, Error> {
         self.repr.call(trace.with_frame(self.frame()), parameters)
     }
 }
@@ -175,9 +175,9 @@ mod tests {
 
     use super::Proc;
 
-    use crate::{BTrace, Callable, Error, Parameters, Symbol, Value};
+    use crate::{BackTrace, Callable, Error, Parameters, Symbol, Value};
 
-    fn add(trace: BTrace, pars: Vector<Value>) -> Result<Value, Error> {
+    fn add(trace: BackTrace, pars: Vector<Value>) -> Result<Value, Error> {
         let mut res = Integer::from(0);
 
         for e in pars {
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn run() {
-        let trace = BTrace::new();
+        let trace = BackTrace::new();
         let lambda = Proc::from_native(
             Parameters::Variadic(NonZeroUsize::new(1).unwrap()),
             None,

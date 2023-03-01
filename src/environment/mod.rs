@@ -154,11 +154,11 @@ mod tests {
     use im_rc::vector;
     use rug::Integer;
 
-    use crate::{BTrace, Environment, Symbol, Value};
+    use crate::{BackTrace, Environment, Symbol, Value};
 
     #[test]
     fn plus() {
-        let trace = BTrace::new();
+        let trace = BackTrace::new();
         let env = Environment::default();
 
         assert_eq!(
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn list() {
-        let trace = BTrace::new();
+        let trace = BackTrace::new();
         let env = Environment::default();
 
         let l = vector![1.into(), 2.into(), 3.into()];

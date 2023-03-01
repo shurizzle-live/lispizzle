@@ -1,11 +1,11 @@
 use im_rc::{vector, Vector};
 
-use crate::{BTrace, Environment, Error, Str, Symbol, Value};
+use crate::{BackTrace, Environment, Error, Str, Symbol, Value};
 
 use std::mem;
 
 pub fn transform(
-    trace: BTrace,
+    trace: BackTrace,
     env: Environment,
     name: Str,
     args: Vector<Value>,
@@ -31,7 +31,7 @@ fn grab(args: &mut Vector<Value>, n: usize) -> Value {
     args.remove(n)
 }
 
-fn quote(trace: BTrace, _env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn quote(trace: BackTrace, _env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() == 1 {
         Ok(unshift(&mut args))
     } else {
@@ -39,7 +39,7 @@ fn quote(trace: BTrace, _env: Environment, mut args: Vector<Value>) -> Result<Va
     }
 }
 
-fn quasiquote(trace: BTrace, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn quasiquote(trace: BackTrace, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() != 1 {
         return Err(trace.error("syntax-error", None));
     }
@@ -49,7 +49,7 @@ fn quasiquote(trace: BTrace, env: Environment, mut args: Vector<Value>) -> Resul
         Splice(Vector<Value>),
     }
 
-    fn scan(trace: BTrace, env: Environment, v: Value) -> Result<Res, Error> {
+    fn scan(trace: BackTrace, env: Environment, v: Value) -> Result<Res, Error> {
         if let Value::List(mut list) = v {
             if let Some(Value::Symbol(Symbol::Name(name))) = list.get(0) {
                 if name == "unquote" {
@@ -103,7 +103,7 @@ fn quasiquote(trace: BTrace, env: Environment, mut args: Vector<Value>) -> Resul
     }
 }
 
-fn iff(trace: BTrace, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn iff(trace: BackTrace, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() == 2 {
         if unshift(&mut args)
             .eval(trace.clone(), env.clone())?
@@ -127,7 +127,7 @@ fn iff(trace: BTrace, env: Environment, mut args: Vector<Value>) -> Result<Value
     }
 }
 
-fn set_em_(trace: BTrace, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn set_em_(trace: BackTrace, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() == 2 {
         let key = if let Value::Symbol(s) = unshift(&mut args) {
             s
@@ -147,7 +147,7 @@ fn set_em_(trace: BTrace, env: Environment, mut args: Vector<Value>) -> Result<V
 }
 
 fn current_environment(
-    trace: BTrace,
+    trace: BackTrace,
     env: Environment,
     args: Vector<Value>,
 ) -> Result<Value, Error> {
@@ -158,7 +158,11 @@ fn current_environment(
     }
 }
 
-fn macroexpand(trace: BTrace, oenv: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn macroexpand(
+    trace: BackTrace,
+    oenv: Environment,
+    mut args: Vector<Value>,
+) -> Result<Value, Error> {
     let env = if args.len() == 1 {
         oenv
     } else if args.len() == 2 {

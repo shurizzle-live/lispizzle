@@ -1,13 +1,13 @@
 use std::{mem, ops::ControlFlow};
 use ControlFlow::*;
 
-use crate::{proc::Callable, BTrace, Environment, Error, Symbol, Value};
+use crate::{proc::Callable, BackTrace, Environment, Error, Symbol, Value};
 
 type Expanded1 = ControlFlow<Value, (Value, bool)>;
 
 type Expanded = ControlFlow<Value, Value>;
 
-fn _expand(me: Value, trace: BTrace, env: Environment) -> Result<Expanded1, Error> {
+fn _expand(me: Value, trace: BackTrace, env: Environment) -> Result<Expanded1, Error> {
     let mut l = match me {
         Value::List(l) => l,
         _ => return Ok(Continue((me, false))),
@@ -48,7 +48,7 @@ fn _expand(me: Value, trace: BTrace, env: Environment) -> Result<Expanded1, Erro
     r#macro.call(trace, l).map(|x| Continue((x, true)))
 }
 
-fn expand_quasiquote(me: Value, trace: BTrace, env: Environment) -> Result<Value, Error> {
+fn expand_quasiquote(me: Value, trace: BackTrace, env: Environment) -> Result<Value, Error> {
     if let Value::List(mut list) = me {
         if let Some(Value::Symbol(Symbol::Name(name))) = list.get(0) {
             if name == "unquote" || name == "unquote-splicing" {
@@ -70,7 +70,7 @@ fn expand_quasiquote(me: Value, trace: BTrace, env: Environment) -> Result<Value
     }
 }
 
-fn expand(mut me: Value, trace: BTrace, env: Environment) -> Result<Expanded, Error> {
+fn expand(mut me: Value, trace: BackTrace, env: Environment) -> Result<Expanded, Error> {
     while {
         let expanded;
         (me, expanded) = match _expand(me, trace.clone(), env.clone())? {
@@ -82,7 +82,7 @@ fn expand(mut me: Value, trace: BTrace, env: Environment) -> Result<Expanded, Er
     Ok(Continue(me))
 }
 
-pub fn macroexpand(me: Value, trace: BTrace, env: Environment) -> Result<Value, Error> {
+pub fn macroexpand(me: Value, trace: BackTrace, env: Environment) -> Result<Value, Error> {
     let me = match expand(me, trace.clone(), env.clone())? {
         Continue(x) => x,
         Break(x) => return Ok(x),

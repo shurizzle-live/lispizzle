@@ -2,7 +2,7 @@ use std::ops::{AddAssign, Neg, SubAssign};
 
 use im_rc::{vector, Vector};
 
-use crate::{BTrace, Environment, Error, Str, Symbol, Value};
+use crate::{BackTrace, Environment, Error, Str, Symbol, Value};
 
 impl Default for Environment {
     fn default() -> Self {
@@ -19,7 +19,7 @@ impl Default for Environment {
             doc: Option<S2>,
             f: F,
         ) where
-            F: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
+            F: (Fn(BackTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
             S1: Into<Str>,
             S2: Into<Str>,
         {
@@ -37,7 +37,7 @@ impl Default for Environment {
             doc: Option<S2>,
             f: F,
         ) where
-            F: (Fn(BTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
+            F: (Fn(BackTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
             S1: Into<Str>,
             S2: Into<Str>,
         {
