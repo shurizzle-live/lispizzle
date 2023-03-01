@@ -301,6 +301,138 @@ impl Default for Environment {
             },
         );
 
+        define_fn(
+            &me,
+            "nil?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_env, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_nil().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "string?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_env, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_string().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "bool?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_env, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_boolean().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "char?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_env, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_character().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "int?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_env, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_integer().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "sym?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_env, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_symbol().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "fn?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_env, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_fn().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "macro?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_env, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_macro().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "list?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_env, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_list().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "var?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_env, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_var().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "env?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_env, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_environment().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "error?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_env, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_error().into())
+            },
+        );
+
         me
     }
 }

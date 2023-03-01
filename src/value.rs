@@ -47,6 +47,11 @@ impl Value {
     }
 
     #[inline]
+    pub fn is_integer(&self) -> bool {
+        matches!(self, Value::Character(_))
+    }
+
+    #[inline]
     pub fn is_string(&self) -> bool {
         matches!(self, Value::String(_))
     }
@@ -75,13 +80,13 @@ impl Value {
     }
 
     #[inline]
-    pub fn is_proc(&self) -> bool {
-        matches!(self, Value::Proc(_))
+    pub fn is_list(&self) -> bool {
+        matches!(self, Value::List(_))
     }
 
     #[inline]
-    pub fn is_list(&self) -> bool {
-        matches!(self, Value::List(_))
+    pub fn is_var(&self) -> bool {
+        matches!(self, Value::Var(_))
     }
 
     #[inline]
@@ -136,7 +141,7 @@ impl Value {
             | Self::Proc(_)
             | Self::Var(_)
             | Self::Environment(_)
-            | Self::Error(_) => Ok(self.clone()),
+            | Self::Error(_) => Ok(self),
             Self::Symbol(sym) => env
                 .get(sym.clone())
                 .map(|v| v.get())
@@ -152,7 +157,7 @@ impl Value {
                     let resolved = first.eval(env.clone())?;
 
                     if resolved.is_macro() {
-                        resolved.apply(env, l)
+                        Err(env.error("wrong-type-arg", None))
                     } else {
                         let args = l
                             .into_iter()
