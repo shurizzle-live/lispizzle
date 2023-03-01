@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, mem};
 
 use im_rc::{vector, Vector};
 use rug::Integer;
@@ -171,6 +171,69 @@ impl Value {
                 }
             }
         }
+    }
+
+    fn _macroexpand(self, env: Environment) -> Result<(Value, bool), Error> {
+        let mut l = match self {
+            Self::List(l) => l,
+            _ => return Ok((self, false)),
+        };
+
+        let value = if let Some(Self::Symbol(sym)) = l.get(0) {
+            if let Some(var) = env.get(sym) {
+                var.get()
+            } else {
+                return Ok((Self::List(l), false));
+            }
+        } else {
+            return Ok((Self::List(l), false));
+        };
+
+        let r#macro = if let Self::Proc(proc) = value {
+            if proc.is_macro() {
+                proc
+            } else {
+                return Ok((Self::List(l), false));
+            }
+        } else {
+            return Ok((Self::List(l), false));
+        };
+
+        l.remove(0);
+        r#macro.call(env, l).map(|x| (x, true))
+    }
+
+    #[inline(always)]
+    fn _macroexpand1(self, env: Environment) -> Result<Value, Error> {
+        let mut me = self;
+        while {
+            let expanded;
+            (me, expanded) = me._macroexpand(env.clone())?;
+            expanded
+        } {}
+        Ok(me)
+    }
+
+    pub fn macroexpand(self, env: Environment) -> Result<Value, Error> {
+        let me = self._macroexpand1(env.clone())?;
+        let mut me = if let Value::List(me) = me {
+            me
+        } else {
+            return Ok(me);
+        };
+
+        let mut i = 0;
+        while i < me.len() {
+            let mut exp = Value::Nil;
+            mem::swap(&mut exp, unsafe { me.get_mut(i).unwrap_unchecked() });
+
+            exp = exp.macroexpand(env.clone())?;
+
+            mem::swap(&mut exp, unsafe { me.get_mut(i).unwrap_unchecked() });
+            i += 1;
+        }
+
+        Ok(Value::List(me))
     }
 
     pub fn to_bool(&self) -> bool {

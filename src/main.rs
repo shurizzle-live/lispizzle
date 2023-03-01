@@ -15,13 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         e => e?,
     };
 
-    let prog = match Program::new(code) {
-        Ok(x) => x,
-        Err(err) => {
-            println!("{:#?}", err);
-            return Ok(());
-        }
-    };
+    let prog = Program::new(code);
 
     let env = Environment::default();
 

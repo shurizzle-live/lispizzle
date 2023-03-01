@@ -433,6 +433,32 @@ impl Default for Environment {
             },
         );
 
+        define_fn(
+            &me,
+            "macroexpand",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(2) }),
+            Option::<&str>::None,
+            |oenv, mut values| {
+                if values.len() > 2 {
+                    return Err(oenv.error("wrong-number-of-args", None));
+                }
+
+                let exp = unshift(&mut values);
+
+                let env = if let Some(env) = values.pop_front() {
+                    if let Value::Environment(env) = env {
+                        env
+                    } else {
+                        return Err(oenv.error("wrong-type-arg", None));
+                    }
+                } else {
+                    oenv
+                };
+
+                exp.macroexpand(env)
+            },
+        );
+
         me
     }
 }
