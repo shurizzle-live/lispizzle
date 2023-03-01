@@ -1,105 +1,21 @@
-use std::{fmt, rc::Rc};
+use std::fmt;
 
-use im_rc::Vector;
+use im_rc::{vector, Vector};
 
 use crate::{Error, Str, Symbol, Value};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 enum TraceFrameRepr {
     Main,
     Unnamed(usize),
     Named(usize, Symbol),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TraceFrame(TraceFrameRepr);
 
-struct BackTraceRepr {
-    parent: Option<Rc<BackTraceRepr>>,
-    frame: TraceFrame,
-}
-
-pub struct BackTrace(Rc<BackTraceRepr>);
-
-impl BackTrace {
-    #[inline]
-    pub fn new() -> Self {
-        Self(Rc::new(BackTraceRepr {
-            parent: None,
-            frame: TraceFrame::main(),
-        }))
-    }
-
-    #[inline]
-    pub fn current(&self) -> TraceFrame {
-        self.0.frame.clone()
-    }
-
-    pub fn parent(&self) -> Option<Self> {
-        self.0.parent.as_ref().map(Rc::clone).map(Self)
-    }
-
-    #[inline]
-    pub fn error<S: Into<Str>>(self, name: S, args: Option<Vector<Value>>) -> Error {
-        Error::new(name.into(), args, self)
-    }
-
-    #[inline]
-    pub fn with_frame(&self, frame: TraceFrame) -> Self {
-        Self(Rc::new(BackTraceRepr {
-            parent: Some(Rc::clone(&self.0)),
-            frame,
-        }))
-    }
-}
-
-pub struct IntoIter {
-    inner: Option<BackTrace>,
-}
-
-impl Iterator for IntoIter {
-    type Item = TraceFrame;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let trace = self.inner.take()?;
-
-        let res = trace.current();
-        self.inner = trace.parent();
-        Some(res)
-    }
-}
-
-impl IntoIterator for BackTrace {
-    type Item = TraceFrame;
-
-    type IntoIter = IntoIter;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        IntoIter { inner: Some(self) }
-    }
-}
-
-impl Default for BackTrace {
-    #[inline]
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Clone for BackTrace {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self(Rc::clone(&self.0))
-    }
-}
-
-impl fmt::Debug for BackTrace {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "#<backtrace>")
-    }
-}
+#[derive(Clone)]
+pub struct BackTrace(Vector<TraceFrame>);
 
 impl TraceFrame {
     pub const fn main() -> Self {
@@ -130,6 +46,15 @@ impl PartialEq for TraceFrameRepr {
     }
 }
 
+impl Eq for TraceFrameRepr {}
+
+impl PartialEq for TraceFrame {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+
 impl fmt::Display for TraceFrameRepr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -146,3 +71,90 @@ impl fmt::Display for TraceFrame {
         fmt::Display::fmt(&self.0, f)
     }
 }
+
+impl fmt::Debug for TraceFrameRepr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Main => write!(f, "main"),
+            Self::Unnamed(_) => write!(f, "?"),
+            Self::Named(_, name) => fmt::Debug::fmt(name, f),
+        }
+    }
+}
+
+impl fmt::Debug for TraceFrame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "#<frame {}>", self.0)
+    }
+}
+
+impl BackTrace {
+    pub fn new() -> Self {
+        Self(vector![TraceFrame::main()])
+    }
+
+    #[inline]
+    pub fn current(&self) -> TraceFrame {
+        unsafe { self.0.last().cloned().unwrap_unchecked() }
+    }
+
+    pub fn parent(&self) -> Option<Self> {
+        if self.0.len() == 1 {
+            None
+        } else {
+            let mut v = self.0.clone();
+            v.remove(v.len() - 1);
+            Some(Self(v))
+        }
+    }
+
+    #[inline]
+    pub fn error<S: Into<Str>>(self, name: S, args: Option<Vector<Value>>) -> Error {
+        Error::new(name.into(), args, self)
+    }
+
+    #[inline]
+    pub fn with_frame(&self, frame: TraceFrame) -> Self {
+        let mut v = self.0.clone();
+        v.push_back(frame);
+        Self(v)
+    }
+
+    #[inline]
+    pub fn get(&self, i: usize) -> Option<TraceFrame> {
+        self.0.get(i).cloned()
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Default for BackTrace {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl fmt::Debug for BackTrace {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "#<backtrace>")
+    }
+}
+
+impl PartialEq for BackTrace {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+
+impl Eq for BackTrace {}

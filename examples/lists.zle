@@ -7,5 +7,7 @@
 (print   (2 s))
 (print   (3 s))
 (println (4 s))
+(println (backtrace))
+(println (0 (backtrace)))
 
 ;; vim:ft=scheme

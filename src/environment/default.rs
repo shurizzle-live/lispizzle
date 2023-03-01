@@ -207,12 +207,12 @@ impl Default for Environment {
             "apply",
             Parameters::Exact(2),
             Option::<&str>::None,
-            |env, mut values| {
+            |trace, mut values| {
                 let f = unshift(&mut values);
                 if let Value::List(args) = unshift(&mut values) {
-                    f.apply(env, args)
+                    f.apply(trace, args)
                 } else {
-                    Err(env.error("wrong-type-arg", None))
+                    Err(trace.error("wrong-type-arg", None))
                 }
             },
         );
@@ -222,7 +222,7 @@ impl Default for Environment {
             "eq?",
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 if let Some(first) = values.pop_front() {
                     while let Some(other) = values.pop_front() {
                         if first.ne(&other) {
@@ -241,11 +241,11 @@ impl Default for Environment {
             "=",
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
             Option::<&str>::None,
-            |env, mut values| {
+            |trace, mut values| {
                 if let Some(first) = values.pop_front() {
                     while let Some(other) = values.pop_front() {
                         if core::mem::discriminant(&first) != core::mem::discriminant(&other) {
-                            return Err(env.error("wrong-type-arg", None));
+                            return Err(trace.error("wrong-type-arg", None));
                         }
 
                         if first.ne(&other) {
@@ -264,7 +264,7 @@ impl Default for Environment {
             "begin",
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 if let Some(last) = values.pop_back() {
                     Ok(last)
                 } else {
@@ -278,7 +278,7 @@ impl Default for Environment {
             "nil?",
             Parameters::Exact(1),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 let x = unshift(&mut values);
                 Ok(x.is_nil().into())
             },
@@ -289,7 +289,7 @@ impl Default for Environment {
             "string?",
             Parameters::Exact(1),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 let x = unshift(&mut values);
                 Ok(x.is_string().into())
             },
@@ -300,7 +300,7 @@ impl Default for Environment {
             "bool?",
             Parameters::Exact(1),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 let x = unshift(&mut values);
                 Ok(x.is_boolean().into())
             },
@@ -311,7 +311,7 @@ impl Default for Environment {
             "char?",
             Parameters::Exact(1),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 let x = unshift(&mut values);
                 Ok(x.is_character().into())
             },
@@ -322,7 +322,7 @@ impl Default for Environment {
             "int?",
             Parameters::Exact(1),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 let x = unshift(&mut values);
                 Ok(x.is_integer().into())
             },
@@ -333,7 +333,7 @@ impl Default for Environment {
             "sym?",
             Parameters::Exact(1),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 let x = unshift(&mut values);
                 Ok(x.is_symbol().into())
             },
@@ -344,7 +344,7 @@ impl Default for Environment {
             "fn?",
             Parameters::Exact(1),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 let x = unshift(&mut values);
                 Ok(x.is_fn().into())
             },
@@ -355,7 +355,7 @@ impl Default for Environment {
             "macro?",
             Parameters::Exact(1),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 let x = unshift(&mut values);
                 Ok(x.is_macro().into())
             },
@@ -366,7 +366,7 @@ impl Default for Environment {
             "list?",
             Parameters::Exact(1),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 let x = unshift(&mut values);
                 Ok(x.is_list().into())
             },
@@ -377,7 +377,7 @@ impl Default for Environment {
             "var?",
             Parameters::Exact(1),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 let x = unshift(&mut values);
                 Ok(x.is_var().into())
             },
@@ -388,7 +388,7 @@ impl Default for Environment {
             "env?",
             Parameters::Exact(1),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 let x = unshift(&mut values);
                 Ok(x.is_environment().into())
             },
@@ -399,9 +399,31 @@ impl Default for Environment {
             "error?",
             Parameters::Exact(1),
             Option::<&str>::None,
-            |_env, mut values| {
+            |_trace, mut values| {
                 let x = unshift(&mut values);
                 Ok(x.is_error().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "backtrace?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_trace, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_backtrace().into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "frame?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_trace, mut values| {
+                let x = unshift(&mut values);
+                Ok(x.is_frame().into())
             },
         );
 
@@ -418,6 +440,14 @@ impl Default for Environment {
                 ]
                 .into())
             },
+        );
+
+        define_fn(
+            &me,
+            "backtrace",
+            Parameters::Exact(0),
+            Option::<&str>::None,
+            |trace, _values| Ok(trace.parent().into()),
         );
 
         me

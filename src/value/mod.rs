@@ -8,7 +8,7 @@ use rug::Integer;
 use crate::{
     special::transform,
     util::{print_list_debug, print_list_display},
-    BackTrace, Callable, Environment, Error, Proc, Str, Symbol, Var,
+    BackTrace, Callable, Environment, Error, Proc, Str, Symbol, TraceFrame, Var,
 };
 
 #[derive(Clone)]
@@ -26,6 +26,8 @@ pub enum Value {
     Var(Var),
     Environment(Environment),
     Error(Error),
+    BackTrace(BackTrace),
+    Frame(TraceFrame),
 }
 
 impl Value {
@@ -94,11 +96,22 @@ impl Value {
         matches!(self, Value::Error(_))
     }
 
+    #[inline]
+    pub fn is_backtrace(&self) -> bool {
+        matches!(self, Value::BackTrace(_))
+    }
+
+    #[inline]
+    pub fn is_frame(&self) -> bool {
+        matches!(self, Value::Frame(_))
+    }
+
     pub fn element_at(&self, trace: BackTrace, i: &Integer) -> Result<Value, Error> {
         if let Some(i) = i.to_usize() {
             match self {
                 Self::List(l) => Ok(l.get(i).cloned().unwrap_or(Value::Nil)),
                 Self::String(s) => Ok(s.char_at(i).map(Self::from).unwrap_or(Value::Nil)),
+                Self::BackTrace(b) => Ok(b.get(i).map(Self::from).unwrap_or(Value::Nil)),
                 _ => Err(trace.error("wrong-type-arg", None)),
             }
         } else {
@@ -115,11 +128,11 @@ impl Value {
                     l.call(trace, args)
                 }
             }
-            Self::Integer(i) => {
+            Self::Integer(l) => {
                 if args.len() != 1 {
                     return Err(trace.error("wrong-number-of-args", None));
                 }
-                unsafe { args.pop_front().unwrap_unchecked() }.element_at(trace, i)
+                unsafe { args.pop_front().unwrap_unchecked() }.element_at(trace, l)
             }
             _ => Err(trace.error("wrong-type-arg", None)),
         }
@@ -137,7 +150,9 @@ impl Value {
             | Self::Macro(_)
             | Self::Var(_)
             | Self::Environment(_)
-            | Self::Error(_) => Ok(self),
+            | Self::Error(_)
+            | Self::BackTrace(_)
+            | Self::Frame(_) => Ok(self),
             Self::Symbol(sym) => env
                 .get(sym.clone())
                 .map(|v| v.get())
@@ -196,6 +211,8 @@ impl PartialEq for Value {
             (Self::List(l0), Self::List(r0)) => l0 == r0,
             (Self::Var(l0), Self::Var(r0)) => l0 == r0,
             (Self::Environment(l0), Self::Environment(r0)) => l0 == r0,
+            (Self::BackTrace(l0), Self::BackTrace(r0)) => l0 == r0,
+            (Self::Frame(l0), Self::Frame(r0)) => l0 == r0,
             _ => false,
         }
     }
@@ -349,6 +366,20 @@ impl<T: Into<Value>> From<Option<T>> for Value {
     }
 }
 
+impl From<BackTrace> for Value {
+    #[inline]
+    fn from(value: BackTrace) -> Self {
+        Self::BackTrace(value)
+    }
+}
+
+impl From<TraceFrame> for Value {
+    #[inline]
+    fn from(value: TraceFrame) -> Self {
+        Self::Frame(value)
+    }
+}
+
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -370,6 +401,8 @@ impl fmt::Debug for Value {
             Self::Var(v) => fmt::Debug::fmt(v, f),
             Self::Environment(e) => fmt::Debug::fmt(e, f),
             Self::Error(e) => fmt::Debug::fmt(e, f),
+            Self::BackTrace(b) => fmt::Debug::fmt(b, f),
+            Self::Frame(ff) => fmt::Debug::fmt(ff, f),
         }
     }
 }
@@ -395,6 +428,8 @@ impl fmt::Display for Value {
             Self::Var(v) => fmt::Display::fmt(v, f),
             Self::Environment(v) => fmt::Display::fmt(v, f),
             Self::Error(v) => fmt::Display::fmt(v, f),
+            Self::BackTrace(b) => fmt::Debug::fmt(b, f),
+            Self::Frame(ff) => fmt::Debug::fmt(ff, f),
         }
     }
 }
