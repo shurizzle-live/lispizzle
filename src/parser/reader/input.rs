@@ -4,15 +4,21 @@ use std::{
     path::Path,
 };
 
-use crate::parser::{Error, Message};
+use ecow::EcoVec;
 
-use super::str_reader::*;
+use crate::{
+    parser::{Error, Message},
+    Str,
+};
+
+use super::{cache::StrCache, str_reader::*};
 
 #[derive(Debug, Clone)]
 pub struct Input<'a> {
     path: Option<&'a Path>,
     inner: StringReader<'a>,
     need_ws: bool,
+    str_cache: StrCache,
 }
 
 impl<'a> Input<'a> {
@@ -21,6 +27,7 @@ impl<'a> Input<'a> {
             path,
             inner: StringReader::new(text),
             need_ws: false,
+            str_cache: StrCache::new(),
         }
     }
 
@@ -57,6 +64,7 @@ impl<'a> Input<'a> {
             path: self.path,
             inner: self.inner.ltrim(),
             need_ws: self.need_ws,
+            str_cache: self.str_cache,
         }
     }
 
@@ -69,11 +77,13 @@ impl<'a> Input<'a> {
                 path: self.path,
                 inner: a,
                 need_ws: self.need_ws,
+                str_cache: self.str_cache.clone(),
             },
             Self {
                 path: self.path,
                 inner: b,
                 need_ws: self.need_ws,
+                str_cache: self.str_cache,
             },
         ))
     }
@@ -84,7 +94,13 @@ impl<'a> Input<'a> {
             path: self.path,
             inner: self.inner.skip_until_nl(),
             need_ws: self.need_ws,
+            str_cache: self.str_cache,
         }
+    }
+
+    #[inline]
+    pub fn make_string<T: Borrow<str> + Into<Str>>(&mut self, s: T) -> Str {
+        self.str_cache.get(s)
     }
 
     pub fn err<M: Into<Message>>(self, message: M) -> Error {
@@ -159,6 +175,7 @@ impl Slice<RangeFrom<usize>> for Input<'_> {
             path: self.path,
             inner: self.inner.get(index)?,
             need_ws: self.need_ws,
+            str_cache: self.str_cache.clone(),
         })
     }
 }
@@ -172,6 +189,7 @@ impl Slice<RangeInclusive<usize>> for Input<'_> {
             path: self.path,
             inner: self.inner.get(index)?,
             need_ws: self.need_ws,
+            str_cache: self.str_cache.clone(),
         })
     }
 }
@@ -185,6 +203,7 @@ impl Slice<Range<usize>> for Input<'_> {
             path: self.path,
             inner: self.inner.get(index)?,
             need_ws: self.need_ws,
+            str_cache: self.str_cache.clone(),
         })
     }
 }
@@ -198,6 +217,7 @@ impl Slice<RangeTo<usize>> for Input<'_> {
             path: self.path,
             inner: self.inner.get(index)?,
             need_ws: self.need_ws,
+            str_cache: self.str_cache.clone(),
         })
     }
 }
@@ -211,6 +231,7 @@ impl Slice<RangeToInclusive<usize>> for Input<'_> {
             path: self.path,
             inner: self.inner.get(index)?,
             need_ws: self.need_ws,
+            str_cache: self.str_cache.clone(),
         })
     }
 }
@@ -224,6 +245,14 @@ impl Slice<RangeFull> for Input<'_> {
             path: self.path,
             inner: self.inner.get(index)?,
             need_ws: self.need_ws,
+            str_cache: self.str_cache.clone(),
         })
+    }
+}
+
+#[allow(clippy::from_over_into)]
+impl Into<Str> for Input<'_> {
+    fn into(self) -> Str {
+        unsafe { Str::from_raw(EcoVec::from(self.as_str().as_bytes()), self.len()) }
     }
 }

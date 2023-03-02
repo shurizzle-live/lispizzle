@@ -1,3 +1,4 @@
+mod cache;
 mod input;
 mod str_reader;
 #[cfg(feature = "benchmarking")]
@@ -213,7 +214,7 @@ fn symbol_or_integer(i: Input) -> Result<Value> {
         return Err(i.err("unexpected character"));
     }
 
-    let (parsed, i) = unsafe { split_at(i, len).unwrap_unchecked() };
+    let (parsed, mut i) = unsafe { split_at(i, len).unwrap_unchecked() };
 
     if is_integer {
         i.ok(Integer::parse(parsed.as_str())
@@ -221,9 +222,8 @@ fn symbol_or_integer(i: Input) -> Result<Value> {
             .complete()
             .into())
     } else {
-        i.ok(Value::Symbol(Symbol::Name(
-            EcoVec::from(parsed.as_str().as_bytes()).into(),
-        )))
+        let name = i.make_string(parsed);
+        i.ok(Value::Symbol(Symbol::Name(name)))
     }
 }
 
@@ -275,6 +275,7 @@ fn string(i: Input) -> Result<Value> {
     let mut escaping = false;
     let mut res = EcoVec::<u8>::new();
     let mut prev_input = i.clone();
+    let mut len = 0;
 
     loop {
         let pinput = i.clone();
@@ -310,7 +311,9 @@ fn string(i: Input) -> Result<Value> {
                     _ => return Err(prev_input.err("unexpected escaped symbol")),
                 };
                 let mut buf = [0; 4];
-                for c in c.encode_utf8(&mut buf).as_bytes().iter().copied() {
+                let buf = c.encode_utf8(&mut buf);
+                len += buf.len();
+                for c in buf.as_bytes().iter().copied() {
                     res.push(c);
                 }
             } else {
@@ -319,11 +322,15 @@ fn string(i: Input) -> Result<Value> {
                         escaping = true;
                     }
                     '"' => {
-                        return i.set_needs_ws().ok(Str::from(res).into());
+                        return i
+                            .set_needs_ws()
+                            .ok(unsafe { Str::from_raw(res, len) }.into());
                     }
                     _ => {
                         let mut buf = [0; 4];
-                        for c in c.encode_utf8(&mut buf).as_bytes().iter().copied() {
+                        let buf = c.encode_utf8(&mut buf);
+                        len += buf.len();
+                        for c in buf.as_bytes().iter().copied() {
                             res.push(c);
                         }
                     }

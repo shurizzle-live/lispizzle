@@ -1,4 +1,4 @@
-use std::{fmt, hash::Hash, mem};
+use std::{borrow::Borrow, fmt, hash::Hash, mem};
 
 use ecow::{EcoString, EcoVec};
 
@@ -302,6 +302,14 @@ impl Str {
     }
 
     #[inline]
+    /// # Safety
+    /// we need to check first that `raw` is a valid utf-8 encoded string and
+    /// its length is `len`
+    pub unsafe fn from_raw(raw: EcoVec<u8>, len: usize) -> Self {
+        Self(Repr::Alloc(raw, len))
+    }
+
+    #[inline]
     pub fn substring(mut self, start: usize, len: Option<usize>) -> Option<Self> {
         let mut inner = Repr::Empty;
         mem::swap(self.repr_mut(), &mut inner);
@@ -342,13 +350,6 @@ impl From<Repr> for Str {
 impl From<&'static str> for Str {
     #[inline]
     fn from(value: &'static str) -> Self {
-        Self(value.into())
-    }
-}
-
-impl From<EcoVec<u8>> for Str {
-    #[inline]
-    fn from(value: EcoVec<u8>) -> Self {
         Self(value.into())
     }
 }
@@ -428,5 +429,12 @@ impl Ord for Str {
 impl Hash for Str {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.repr().hash(state)
+    }
+}
+
+impl Borrow<str> for Str {
+    #[inline]
+    fn borrow(&self) -> &str {
+        self.as_str()
     }
 }
