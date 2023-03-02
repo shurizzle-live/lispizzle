@@ -2,11 +2,11 @@ use std::ops::{AddAssign, Neg, SubAssign};
 
 use im_rc::{vector, Vector};
 
-use crate::{Context, Environment, Error, Str, Symbol, Value};
+use crate::{environment::proc, Context, Environment, Error, Str, Symbol, Value};
 
 impl Default for Environment {
     fn default() -> Self {
-        use crate::{Parameters, Proc};
+        use crate::proc::{Parameters, Proc};
         use rug::Integer;
         use std::num::NonZeroUsize;
 
@@ -584,6 +584,22 @@ impl Default for Environment {
                     .map(Into::into)
                     .ok_or_else(|| ctx.trace().error("out-of-range", None))
             },
+        );
+
+        define_macro(
+            &me,
+            "fn",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(3) }),
+            Option::<&str>::None,
+            |ctx, args| proc::proc_macro(ctx, args).map(Value::UnboundFn),
+        );
+
+        define_macro(
+            &me,
+            "macro",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(3) }),
+            Option::<&str>::None,
+            |ctx, args| proc::proc_macro(ctx, args).map(Value::UnboundMacro),
         );
 
         me

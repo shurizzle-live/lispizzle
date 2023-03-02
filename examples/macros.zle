@@ -1,5 +1,23 @@
 (def x 2)
 
+(def defmacro (macro (name &rest)
+                     `(def ,name (macro ,@rest))))
+
+(def defn (macro (name &rest)
+                 `(def ,name (fn ,@rest))))
+
+;; TODO: stack overflow
+;; (defmacro defn (name &rest)
+;;   `(def ,name (fn ,@rest)))
+
+(defn test ()
+      "this is a test"
+      (println "test"))
+
+(println (procedure-documentation test))
+
+(test)
+
 (println (primitive-eval '(+ x 1)))
 
 (println (macroexpand '(primitive-eval '(+ x 1))))

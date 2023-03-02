@@ -1,6 +1,6 @@
 use std::fmt;
 
-use im_rc::{vector, Vector};
+use im_rc::{vector, vector::ConsumingIter, Vector};
 
 use crate::{Error, Str, Symbol, Value};
 
@@ -158,3 +158,14 @@ impl PartialEq for BackTrace {
 }
 
 impl Eq for BackTrace {}
+
+impl IntoIterator for BackTrace {
+    type Item = TraceFrame;
+
+    type IntoIter = ConsumingIter<TraceFrame>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}

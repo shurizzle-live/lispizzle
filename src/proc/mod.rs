@@ -1,4 +1,7 @@
+mod lisp;
 mod native;
+
+pub use lisp::UnboundProc;
 
 use std::{fmt, num::NonZeroUsize};
 
@@ -19,6 +22,7 @@ pub enum Parameters<T1, T2> {
 #[derive(Clone)]
 enum Repr {
     Native(native::NativeProc),
+    Lisp(lisp::LispProc),
 }
 
 impl Repr {
@@ -34,6 +38,7 @@ impl Repr {
     pub fn doc(&self) -> Option<Str> {
         match self {
             Self::Native(ref f) => f.doc(),
+            Self::Lisp(ref f) => f.doc(),
         }
     }
 
@@ -41,6 +46,7 @@ impl Repr {
     pub fn min_arity(&self) -> usize {
         match self {
             Self::Native(ref f) => f.min_arity(),
+            Self::Lisp(ref f) => f.min_arity(),
         }
     }
 }
@@ -50,6 +56,7 @@ impl Callable for Repr {
     fn call(&self, ctx: Context, parameters: Vector<Value>) -> Result<Value, Error> {
         match self {
             Self::Native(f) => f.call(ctx, parameters),
+            Self::Lisp(f) => f.call(ctx, parameters),
         }
     }
 }
@@ -58,6 +65,8 @@ impl PartialEq for Repr {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Native(l0), Self::Native(r0)) => l0 == r0,
+            (Self::Lisp(l0), Self::Lisp(r0)) => l0 == r0,
+            _ => false,
         }
     }
 }
@@ -114,6 +123,7 @@ impl Proc {
     fn _addr(&self) -> usize {
         match &self.repr {
             Repr::Native(l) => &*l.0 as *const _ as *const u8 as usize,
+            Repr::Lisp(l) => &*l.0 as *const _ as *const u8 as usize,
         }
     }
 
@@ -149,6 +159,45 @@ impl PartialEq for Proc {
 
 impl Eq for Proc {}
 
+pub(self) fn fmt_parameters<T, I>(
+    f: &mut fmt::Formatter<'_>,
+    variadic: bool,
+    len: usize,
+    iiter: I,
+) -> fmt::Result
+where
+    T: fmt::Display,
+    I: IntoIterator<Item = T>,
+{
+    let mut it = iiter.into_iter();
+    write!(f, "(")?;
+
+    if variadic {
+        if len > 0 {
+            let last = len - 1;
+
+            for (i, e) in it.enumerate() {
+                if i == 0 && i == last {
+                    write!(f, ". {}", e)?;
+                } else if i == 0 {
+                    write!(f, "{}", e)?;
+                } else if i == last {
+                    write!(f, " . {}", e)?;
+                } else {
+                    write!(f, " {}", e)?;
+                }
+            }
+        }
+    } else if let Some(e) = it.next() {
+        write!(f, "{}", e)?;
+        for e in it {
+            write!(f, " {}", e)?;
+        }
+    }
+
+    write!(f, ")")
+}
+
 impl fmt::Debug for Proc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#<procedure ")?;
@@ -161,8 +210,29 @@ impl fmt::Debug for Proc {
 
         match &self.repr {
             Repr::Native(l) => l.fmt_parameters(f)?,
+            Repr::Lisp(l) => l.fmt_parameters(f)?,
         }
         write!(f, ">")
+    }
+}
+
+impl From<native::NativeProc> for Proc {
+    #[inline]
+    fn from(value: native::NativeProc) -> Self {
+        Self {
+            name: None,
+            repr: Repr::Native(value),
+        }
+    }
+}
+
+impl From<lisp::LispProc> for Proc {
+    #[inline]
+    fn from(value: lisp::LispProc) -> Self {
+        Self {
+            name: None,
+            repr: Repr::Lisp(value),
+        }
     }
 }
 
@@ -175,7 +245,8 @@ mod tests {
 
     use super::Proc;
 
-    use crate::{Callable, Context, Error, Parameters, Symbol, Value};
+    use super::{Callable, Parameters};
+    use crate::{Context, Error, Symbol, Value};
 
     fn add(ctx: Context, pars: Vector<Value>) -> Result<Value, Error> {
         let mut res = Integer::from(0);

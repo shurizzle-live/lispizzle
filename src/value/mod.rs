@@ -6,9 +6,10 @@ use im_rc::{vector, Vector};
 use rug::Integer;
 
 use crate::{
+    proc::{Callable, UnboundProc},
     special::transform,
     util::{print_list_debug, print_list_display},
-    BackTrace, Callable, Context, Environment, Error, Proc, Str, Symbol, TraceFrame, Var,
+    BackTrace, Context, Environment, Error, Proc, Str, Symbol, TraceFrame, Var,
 };
 
 #[derive(Clone)]
@@ -22,6 +23,8 @@ pub enum Value {
     Symbol(Symbol),
     Fn(Proc),
     Macro(Proc),
+    UnboundFn(UnboundProc),
+    UnboundMacro(UnboundProc),
     List(Vector<Value>),
     Var(Var),
     Environment(Environment),
@@ -140,6 +143,8 @@ impl Value {
 
     pub fn eval(self, ctx: Context, env: Environment) -> Result<Value, Error> {
         match self {
+            Self::UnboundFn(f) => Ok(Self::Fn(f.eval(env).into())),
+            Self::UnboundMacro(f) => Ok(Self::Macro(f.eval(env).into())),
             Self::Unspecified
             | Self::Nil
             | Self::Boolean(_)
@@ -207,6 +212,8 @@ impl PartialEq for Value {
             (Self::Symbol(l0), Self::Symbol(r0)) => l0 == r0,
             (Self::Fn(l0), Self::Fn(r0)) => l0 == r0,
             (Self::Macro(l0), Self::Macro(r0)) => l0 == r0,
+            (Self::UnboundFn(l0), Self::UnboundFn(r0)) => l0 == r0,
+            (Self::UnboundMacro(l0), Self::UnboundMacro(r0)) => l0 == r0,
             (Self::List(l0), Self::List(r0)) => l0 == r0,
             (Self::Var(l0), Self::Var(r0)) => l0 == r0,
             (Self::Environment(l0), Self::Environment(r0)) => l0 == r0,
@@ -402,7 +409,10 @@ impl fmt::Debug for Value {
             Self::Integer(i) => fmt::Debug::fmt(i, f),
             Self::String(s) => fmt::Debug::fmt(s, f),
             Self::Symbol(s) => fmt::Debug::fmt(s, f),
+            // TODO: `proc` is wrong, it needs to be `fn` or `macro`
             Self::Fn(l) | Self::Macro(l) => fmt::Debug::fmt(l, f),
+            Self::UnboundFn(_) => write!(f, "#<unbound-fn>"),
+            Self::UnboundMacro(_) => write!(f, "#<unbound-macro>"),
             Self::List(l) => print_list_debug(f, l.iter(), "(", ")"),
             Self::Var(v) => fmt::Debug::fmt(v, f),
             Self::Environment(e) => fmt::Debug::fmt(e, f),
@@ -429,7 +439,10 @@ impl fmt::Display for Value {
             Self::Integer(i) => fmt::Display::fmt(i, f),
             Self::String(s) => fmt::Display::fmt(s, f),
             Self::Symbol(s) => fmt::Display::fmt(s, f),
+            // TODO: `proc` is wrong, it needs to be `fn` or `macro`
             Self::Fn(l) | Self::Macro(l) => fmt::Debug::fmt(l, f),
+            Self::UnboundFn(_) => write!(f, "#<unbound-fn>"),
+            Self::UnboundMacro(_) => write!(f, "#<unbound-macro>"),
             Self::List(l) => print_list_display(f, l.iter(), "(", ")"),
             Self::Var(v) => fmt::Display::fmt(v, f),
             Self::Environment(v) => fmt::Display::fmt(v, f),

@@ -23,6 +23,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(_) => (),
         Err(err) => {
             println!("{:#?}", err);
+            for frame in err.backtrace().into_iter().rev() {
+                println!("{:?}", frame);
+            }
             return Ok(());
         }
     }

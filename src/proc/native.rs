@@ -2,7 +2,7 @@ use std::{fmt, num::NonZeroUsize, rc::Rc};
 
 use im_rc::Vector;
 
-use super::{Callable, Parameters};
+use super::{fmt_parameters, Callable, Parameters};
 use crate::{Context, Error, Str, Value};
 
 pub struct Repr<T>
@@ -57,45 +57,6 @@ impl Callable for Rc<Repr<dyn Fn(Context, Vector<Value>) -> Result<Value, Error>
 
 #[allow(clippy::type_complexity)]
 pub struct NativeProc(pub Rc<Repr<dyn Fn(Context, Vector<Value>) -> Result<Value, Error>>>);
-
-fn fmt_parameters<T, I>(
-    f: &mut fmt::Formatter<'_>,
-    variadic: bool,
-    len: usize,
-    iiter: I,
-) -> fmt::Result
-where
-    T: fmt::Display,
-    I: IntoIterator<Item = T>,
-{
-    let mut it = iiter.into_iter();
-    write!(f, "(")?;
-
-    if variadic {
-        if len > 0 {
-            let last = len - 1;
-
-            for (i, e) in it.enumerate() {
-                if i == 0 && i == last {
-                    write!(f, ". {}", e)?;
-                } else if i == 0 {
-                    write!(f, "{}", e)?;
-                } else if i == last {
-                    write!(f, " . {}", e)?;
-                } else {
-                    write!(f, " {}", e)?;
-                }
-            }
-        }
-    } else if let Some(e) = it.next() {
-        write!(f, "{}", e)?;
-        for e in it {
-            write!(f, " {}", e)?;
-        }
-    }
-
-    write!(f, ")")
-}
 
 impl NativeProc {
     #[inline]
