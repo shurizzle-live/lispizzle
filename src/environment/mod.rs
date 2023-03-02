@@ -13,20 +13,20 @@ use crate::{Symbol, Value, Var};
 
 use bag::Bag;
 
-struct EnvironmentRepr {
-    parent: Option<Rc<RefCell<EnvironmentRepr>>>,
+struct Repr {
+    parent: Option<Rc<RefCell<Repr>>>,
     gensym: usize,
     bag: Bag,
 }
 
-impl EnvironmentRepr {
+impl Repr {
     #[inline]
-    fn parent(&self) -> Option<Ref<EnvironmentRepr>> {
+    fn parent(&self) -> Option<Ref<Repr>> {
         self.parent.as_ref().map(|r| RefCell::borrow(r))
     }
 
     #[inline]
-    fn parent_mut(&self) -> Option<RefMut<EnvironmentRepr>> {
+    fn parent_mut(&self) -> Option<RefMut<Repr>> {
         self.parent.as_ref().map(|r| RefCell::borrow_mut(r))
     }
 
@@ -77,12 +77,27 @@ impl EnvironmentRepr {
     }
 }
 
+#[inline(always)]
+unsafe fn parent_ptr(current: *const Rc<RefCell<Repr>>) -> Option<*const Rc<RefCell<Repr>>> {
+    RefCell::borrow(&**current)
+        .parent
+        .as_ref()
+        .map(|x| x as *const _)
+}
+
+unsafe fn toplevel(mut current: *const Rc<RefCell<Repr>>) -> Rc<RefCell<Repr>> {
+    while let Some(parent) = parent_ptr(current) {
+        current = parent;
+    }
+    Rc::clone(&*current)
+}
+
 #[derive(Clone)]
-pub struct Environment(Rc<RefCell<EnvironmentRepr>>);
+pub struct Environment(Rc<RefCell<Repr>>);
 
 impl Environment {
     pub fn new() -> Self {
-        Self(Rc::new(RefCell::new(EnvironmentRepr {
+        Self(Rc::new(RefCell::new(Repr {
             parent: None,
             gensym: 0,
             bag: Bag::new(),
@@ -94,7 +109,7 @@ impl Environment {
         S: Into<Symbol>,
         I: IntoIterator<Item = S>,
     {
-        Self(Rc::new(RefCell::new(EnvironmentRepr {
+        Self(Rc::new(RefCell::new(Repr {
             parent: Some(Rc::clone(&self.0)),
             gensym: 0,
             bag: names.into_iter().collect(),
@@ -119,6 +134,11 @@ impl Environment {
     #[inline]
     pub fn generate(&self) -> Symbol {
         RefCell::borrow_mut(&*self.0).generate()
+    }
+
+    #[inline]
+    pub fn toplevel(&self) -> Self {
+        Self(unsafe { toplevel(&self.0) })
     }
 }
 
@@ -225,5 +245,12 @@ mod tests {
                 .unwrap(),
             l.into()
         );
+    }
+
+    #[test]
+    fn toplevel() {
+        let env = Environment::new();
+        let child = env.child::<Symbol, _>([]).child::<Symbol, _>([]);
+        assert_eq!(env, child.toplevel());
     }
 }
