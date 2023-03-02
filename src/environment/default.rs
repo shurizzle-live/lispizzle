@@ -168,7 +168,9 @@ impl Default for Environment {
             |trace, mut values| {
                 let l = unshift(&mut values);
                 match (&l, unshift(&mut values)) {
-                    (Value::List(_), Value::Environment(env)) => l.eval(trace, env),
+                    (Value::List(_), Value::Environment(env)) => {
+                        l.macroexpand(trace.clone(), env.clone())?.eval(trace, env)
+                    }
                     _ => Err(trace.error("wrong-type-arg", None)),
                 }
             },
