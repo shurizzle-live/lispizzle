@@ -174,18 +174,18 @@ mod tests {
     use im_rc::vector;
     use rug::Integer;
 
-    use crate::{BackTrace, Environment, Symbol, Value};
+    use crate::{Context, Environment, Symbol, Value};
 
     #[test]
     fn plus() {
-        let trace = BackTrace::new();
+        let ctx = Context::new();
         let env = Environment::default();
 
         assert_eq!(
             env.get(Symbol::Name("+".into()))
                 .unwrap()
                 .get()
-                .apply(trace.clone(), vector![])
+                .apply(ctx.clone(), vector![])
                 .unwrap(),
             Integer::from(0).into()
         );
@@ -194,7 +194,7 @@ mod tests {
             env.get(Symbol::Name("+".into()))
                 .unwrap()
                 .get()
-                .apply(trace.clone(), vector![Integer::from(69).into()])
+                .apply(ctx.clone(), vector![Integer::from(69).into()])
                 .unwrap(),
             Integer::from(69).into()
         );
@@ -203,7 +203,7 @@ mod tests {
             env.get(Symbol::Name("+".into()))
                 .unwrap()
                 .get()
-                .apply(trace.clone(), vector![Value::String("ciao".into())])
+                .apply(ctx.clone(), vector![Value::String("ciao".into())])
                 .unwrap(),
             Value::String("ciao".into())
         );
@@ -213,7 +213,7 @@ mod tests {
                 .unwrap()
                 .get()
                 .apply(
-                    trace.clone(),
+                    ctx.clone(),
                     vector![Integer::from(34).into(), Integer::from(35).into()]
                 )
                 .unwrap(),
@@ -225,7 +225,7 @@ mod tests {
             .unwrap()
             .get()
             .apply(
-                trace,
+                ctx,
                 vector![Integer::from(69).into(), Value::String("ciao".into())]
             )
             .is_err());
@@ -233,7 +233,7 @@ mod tests {
 
     #[test]
     fn list() {
-        let trace = BackTrace::new();
+        let ctx = Context::new();
         let env = Environment::default();
 
         let l = vector![1.into(), 2.into(), 3.into()];
@@ -241,7 +241,7 @@ mod tests {
             env.get(Symbol::Name("list".into()))
                 .unwrap()
                 .get()
-                .apply(trace, l.clone())
+                .apply(ctx, l.clone())
                 .unwrap(),
             l.into()
         );

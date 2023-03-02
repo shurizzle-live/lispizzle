@@ -35,6 +35,13 @@ impl StrCache {
     }
 }
 
+impl Default for StrCache {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Clone for StrCache {
     #[inline]
     fn clone(&self) -> Self {

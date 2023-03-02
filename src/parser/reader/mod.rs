@@ -1,4 +1,3 @@
-mod cache;
 mod input;
 mod str_reader;
 #[cfg(feature = "benchmarking")]

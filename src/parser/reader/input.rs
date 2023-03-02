@@ -11,7 +11,8 @@ use crate::{
     Str,
 };
 
-use super::{cache::StrCache, str_reader::*};
+use super::str_reader::*;
+use crate::StrCache;
 
 #[derive(Debug, Clone)]
 pub struct Input<'a> {
@@ -22,12 +23,18 @@ pub struct Input<'a> {
 }
 
 impl<'a> Input<'a> {
+    #[inline]
+    #[allow(dead_code)]
     pub fn new(path: Option<&'a Path>, text: &'a str) -> Self {
+        Self::with_cache(path, text, StrCache::new())
+    }
+
+    pub fn with_cache(path: Option<&'a Path>, text: &'a str, str_cache: StrCache) -> Self {
         Self {
             path,
             inner: StringReader::new(text),
             need_ws: false,
-            str_cache: StrCache::new(),
+            str_cache,
         }
     }
 

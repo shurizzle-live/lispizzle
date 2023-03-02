@@ -4,10 +4,10 @@ use std::{fmt, num::NonZeroUsize};
 
 use im_rc::Vector;
 
-use crate::{BackTrace, Error, Str, Symbol, TraceFrame, Value};
+use crate::{Context, Error, Str, Symbol, TraceFrame, Value};
 
 pub trait Callable {
-    fn call(&self, trace: BackTrace, parameters: Vector<Value>) -> Result<Value, Error>;
+    fn call(&self, ctx: Context, parameters: Vector<Value>) -> Result<Value, Error>;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -25,7 +25,7 @@ impl Repr {
     #[inline]
     fn from_native<F>(parameters: Parameters<usize, NonZeroUsize>, doc: Option<Str>, fun: F) -> Self
     where
-        F: (std::ops::Fn(BackTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
+        F: (std::ops::Fn(Context, Vector<Value>) -> Result<Value, Error>) + 'static,
     {
         Self::Native(native::NativeProc::new(parameters, doc, fun))
     }
@@ -47,9 +47,9 @@ impl Repr {
 
 impl Callable for Repr {
     #[inline]
-    fn call(&self, trace: BackTrace, parameters: Vector<Value>) -> Result<Value, Error> {
+    fn call(&self, ctx: Context, parameters: Vector<Value>) -> Result<Value, Error> {
         match self {
-            Self::Native(f) => f.call(trace, parameters),
+            Self::Native(f) => f.call(ctx, parameters),
         }
     }
 }
@@ -78,7 +78,7 @@ impl Proc {
         fun: F,
     ) -> Self
     where
-        F: (std::ops::Fn(BackTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
+        F: (std::ops::Fn(Context, Vector<Value>) -> Result<Value, Error>) + 'static,
     {
         Self {
             name: None,
@@ -135,8 +135,8 @@ impl Proc {
 
 impl Callable for Proc {
     #[inline]
-    fn call(&self, trace: BackTrace, parameters: Vector<Value>) -> Result<Value, Error> {
-        self.repr.call(trace.with_frame(self.frame()), parameters)
+    fn call(&self, ctx: Context, parameters: Vector<Value>) -> Result<Value, Error> {
+        self.repr.call(ctx.with_frame(self.frame()), parameters)
     }
 }
 
@@ -175,16 +175,16 @@ mod tests {
 
     use super::Proc;
 
-    use crate::{BackTrace, Callable, Error, Parameters, Symbol, Value};
+    use crate::{Callable, Context, Error, Parameters, Symbol, Value};
 
-    fn add(trace: BackTrace, pars: Vector<Value>) -> Result<Value, Error> {
+    fn add(ctx: Context, pars: Vector<Value>) -> Result<Value, Error> {
         let mut res = Integer::from(0);
 
         for e in pars {
             if let Value::Integer(i) = e {
                 res.add_assign(i);
             } else {
-                return Err(trace.error("wrong-type-arg", None));
+                return Err(ctx.trace().error("wrong-type-arg", None));
             }
         }
 
@@ -193,27 +193,27 @@ mod tests {
 
     #[test]
     fn run() {
-        let trace = BackTrace::new();
+        let ctx = Context::new();
         let lambda = Proc::from_native(
             Parameters::Variadic(NonZeroUsize::new(1).unwrap()),
             None,
             add,
         );
         assert!(lambda == lambda);
-        assert_eq!(lambda.call(trace.clone(), vector![]).unwrap(), 0.into());
+        assert_eq!(lambda.call(ctx.clone(), vector![]).unwrap(), 0.into());
         assert_eq!(
-            lambda.call(trace.clone(), vector![1.into()]).unwrap(),
+            lambda.call(ctx.clone(), vector![1.into()]).unwrap(),
             1.into()
         );
         assert_eq!(
             lambda
-                .call(trace.clone(), vector![1.into(), 2.into()])
+                .call(ctx.clone(), vector![1.into(), 2.into()])
                 .unwrap(),
             3.into()
         );
         assert_eq!(
             lambda
-                .call(trace, vector![1.into(), 2.into(), 3.into()])
+                .call(ctx, vector![1.into(), 2.into(), 3.into()])
                 .unwrap(),
             6.into()
         );

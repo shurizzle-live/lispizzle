@@ -3,11 +3,11 @@ use std::{fmt, num::NonZeroUsize, rc::Rc};
 use im_rc::Vector;
 
 use super::{Callable, Parameters};
-use crate::{BackTrace, Error, Str, Value};
+use crate::{Context, Error, Str, Value};
 
 pub struct Repr<T>
 where
-    T: (Fn(BackTrace, Vector<Value>) -> Result<Value, Error>) + ?Sized + 'static,
+    T: (Fn(Context, Vector<Value>) -> Result<Value, Error>) + ?Sized + 'static,
 {
     parameters: Parameters<usize, NonZeroUsize>,
     doc: Option<Str>,
@@ -17,14 +17,14 @@ where
 #[allow(clippy::type_complexity)]
 impl<F> Repr<F>
 where
-    F: (Fn(BackTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
+    F: (Fn(Context, Vector<Value>) -> Result<Value, Error>) + 'static,
 {
     #[inline]
     pub fn new(
         parameters: Parameters<usize, NonZeroUsize>,
         doc: Option<Str>,
         fun: F,
-    ) -> Rc<Repr<dyn Fn(BackTrace, Vector<Value>) -> Result<Value, Error>>> {
+    ) -> Rc<Repr<dyn Fn(Context, Vector<Value>) -> Result<Value, Error>>> {
         Rc::new(Repr {
             parameters,
             doc,
@@ -33,7 +33,7 @@ where
     }
 }
 
-impl Repr<dyn Fn(BackTrace, Vector<Value>) -> Result<Value, Error>> {
+impl Repr<dyn Fn(Context, Vector<Value>) -> Result<Value, Error>> {
     #[inline]
     pub fn doc(&self) -> Option<Str> {
         self.doc.clone()
@@ -48,15 +48,15 @@ impl Repr<dyn Fn(BackTrace, Vector<Value>) -> Result<Value, Error>> {
     }
 }
 
-impl Callable for Rc<Repr<dyn Fn(BackTrace, Vector<Value>) -> Result<Value, Error>>> {
+impl Callable for Rc<Repr<dyn Fn(Context, Vector<Value>) -> Result<Value, Error>>> {
     #[inline(always)]
-    fn call(&self, trace: BackTrace, parameters: Vector<Value>) -> Result<Value, Error> {
-        (self.fun)(trace, parameters)
+    fn call(&self, ctx: Context, parameters: Vector<Value>) -> Result<Value, Error> {
+        (self.fun)(ctx, parameters)
     }
 }
 
 #[allow(clippy::type_complexity)]
-pub struct NativeProc(pub Rc<Repr<dyn Fn(BackTrace, Vector<Value>) -> Result<Value, Error>>>);
+pub struct NativeProc(pub Rc<Repr<dyn Fn(Context, Vector<Value>) -> Result<Value, Error>>>);
 
 fn fmt_parameters<T, I>(
     f: &mut fmt::Formatter<'_>,
@@ -101,7 +101,7 @@ impl NativeProc {
     #[inline]
     pub fn new<F>(parameters: Parameters<usize, NonZeroUsize>, doc: Option<Str>, fun: F) -> Self
     where
-        F: (Fn(BackTrace, Vector<Value>) -> Result<Value, Error>) + 'static,
+        F: (Fn(Context, Vector<Value>) -> Result<Value, Error>) + 'static,
     {
         Self(Repr::new(parameters, doc, fun))
     }
@@ -137,8 +137,8 @@ impl Eq for NativeProc {}
 
 impl Callable for NativeProc {
     #[inline]
-    fn call(&self, trace: BackTrace, parameters: Vector<Value>) -> Result<Value, Error> {
-        self.0.call(trace, parameters)
+    fn call(&self, ctx: Context, parameters: Vector<Value>) -> Result<Value, Error> {
+        self.0.call(ctx, parameters)
     }
 }
 

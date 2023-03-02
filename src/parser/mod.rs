@@ -18,11 +18,15 @@ pub use location::Location;
 pub use span::Span;
 use thiserror::Error;
 
-use crate::Value;
+use crate::{str_cache::StrCache, Value};
 use reader::Input;
 
+pub fn parse_with_cache(code: &str, cache: StrCache) -> Result<Vec<Value>, Error> {
+    reader::parse(Input::with_cache(None, code, cache))
+}
+
 pub fn parse(code: &str) -> Result<Vec<Value>, Error> {
-    reader::parse(Input::new(None, code))
+    parse_with_cache(code, StrCache::new())
 }
 
 #[derive(Error, Debug)]
@@ -35,7 +39,10 @@ pub enum FileParseError {
     Parse(#[from] Error),
 }
 
-pub fn parse_from_file(path: &Path) -> Result<Vec<Value>, FileParseError> {
+pub fn parse_from_file_with_cache(
+    path: &Path,
+    cache: StrCache,
+) -> Result<Vec<Value>, FileParseError> {
     let mut file = File::open(path)?;
     let size = file.metadata()?.len() as usize;
     let code = unsafe {
@@ -45,7 +52,11 @@ pub fn parse_from_file(path: &Path) -> Result<Vec<Value>, FileParseError> {
         String::from_utf8(buf)?
     };
 
-    Ok(reader::parse(Input::new(Some(path), &code))?)
+    Ok(reader::parse(Input::with_cache(Some(path), &code, cache))?)
+}
+
+pub fn parse_from_file(path: &Path) -> Result<Vec<Value>, FileParseError> {
+    parse_from_file_with_cache(path, StrCache::new())
 }
 
 #[cfg(test)]

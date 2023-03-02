@@ -1,4 +1,4 @@
-use crate::{BackTrace, Environment, Error, Symbol, Value};
+use crate::{Context, Environment, Error, Symbol, Value};
 
 pub struct Program(Vec<Value>);
 
@@ -7,11 +7,7 @@ impl Program {
         Self(exprs)
     }
 
-    fn filter_define(
-        trace: BackTrace,
-        env: Environment,
-        exp: Value,
-    ) -> Result<Option<Value>, Error> {
+    fn filter_define(ctx: Context, env: Environment, exp: Value) -> Result<Option<Value>, Error> {
         let mut list = if let Value::List(list) = exp {
             list
         } else {
@@ -34,16 +30,16 @@ impl Program {
                 unsafe { args.pop_front().unwrap_unchecked() },
                 args.pop_front().unwrap_or(Value::Unspecified),
             ),
-            _ => return Err(trace.error("syntax-error", None)),
+            _ => return Err(ctx.trace().error("syntax-error", None)),
         };
 
         let name = if let Value::Symbol(sym) = name {
             sym
         } else {
-            return Err(trace.error("syntax-error", None));
+            return Err(ctx.trace().error("syntax-error", None));
         };
 
-        let mut value = exp.eval(trace, env.clone())?;
+        let mut value = exp.eval(ctx, env.clone())?;
 
         match value {
             Value::Macro(ref mut proc) | Value::Fn(ref mut proc) => proc.set_name(name.clone()),
@@ -55,13 +51,13 @@ impl Program {
         Ok(None)
     }
 
-    pub fn eval(&self, trace: BackTrace, env: Environment) -> Result<Value, Error> {
+    pub fn eval(&self, ctx: Context, env: Environment) -> Result<Value, Error> {
         let mut last = Value::Unspecified;
         for exp in self.0.iter() {
-            let exp = exp.clone().macroexpand(trace.clone(), env.clone())?;
+            let exp = exp.clone().macroexpand(ctx.clone(), env.clone())?;
 
-            if let Some(exp) = Self::filter_define(trace.clone(), env.clone(), exp)? {
-                last = exp.eval(trace.clone(), env.clone())?;
+            if let Some(exp) = Self::filter_define(ctx.clone(), env.clone(), exp)? {
+                last = exp.eval(ctx.clone(), env.clone())?;
             }
         }
 

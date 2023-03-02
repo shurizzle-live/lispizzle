@@ -1,12 +1,14 @@
 use lispizzle::{
-    parser::{parse_from_file, FileParseError},
-    BackTrace, Environment, Program,
+    parser::{parse_from_file_with_cache, FileParseError},
+    Context, Environment, Program, StrCache,
 };
 
 extern crate lispizzle;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let code = match parse_from_file("examples/macros.zle".as_ref()) {
+    let cache = StrCache::new();
+
+    let code = match parse_from_file_with_cache("examples/macros.zle".as_ref(), cache.clone()) {
         Ok(x) => x,
         Err(FileParseError::Parse(err)) => {
             println!("{}", err);
@@ -17,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let prog = Program::new(code);
 
-    match prog.eval(BackTrace::new(), Environment::default()) {
+    match prog.eval(Context::with_cache(cache), Environment::default()) {
         Ok(_) => (),
         Err(err) => {
             println!("{:#?}", err);
