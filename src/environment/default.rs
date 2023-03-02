@@ -450,6 +450,34 @@ impl Default for Environment {
             |trace, _values| Ok(trace.parent().into()),
         );
 
+        define_fn(
+            &me,
+            "throw",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(2) }),
+            Option::<&str>::None,
+            |trace, mut values| {
+                let args = match values.len() {
+                    1 => None,
+                    2 => {
+                        if let Value::List(list) = values.remove(1) {
+                            Some(list)
+                        } else {
+                            return Err(trace.error("wrong-type-arg", None));
+                        }
+                    }
+                    _ => return Err(trace.error("wrong-number-of-args", None)),
+                };
+
+                let name = if let Value::Symbol(Symbol::Name(str)) = unshift(&mut values) {
+                    str
+                } else {
+                    return Err(trace.error("wrong-type-arg", None));
+                };
+
+                Err(unsafe { trace.parent().unwrap_unchecked() }.error(name, args))
+            },
+        );
+
         me
     }
 }
