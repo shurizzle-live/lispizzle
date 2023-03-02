@@ -366,6 +366,13 @@ impl<T: Into<Value>> From<Option<T>> for Value {
     }
 }
 
+impl From<Error> for Value {
+    #[inline]
+    fn from(value: Error) -> Self {
+        Self::Error(value)
+    }
+}
+
 impl From<BackTrace> for Value {
     #[inline]
     fn from(value: BackTrace) -> Self {

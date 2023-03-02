@@ -514,6 +514,28 @@ impl Default for Environment {
             },
         );
 
+        define_fn(
+            &me,
+            "catch-all",
+            Parameters::Exact(2),
+            Option::<&str>::None,
+            |trace, mut values| {
+                let f1 = values.remove(0);
+                let f2 = values.remove(0);
+
+                if !f1.is_fn() || !f2.is_fn() {
+                    return Err(trace.error("wrong-type-arg", None));
+                }
+
+                let err = match f1.apply(trace.clone(), vector![]) {
+                    Ok(v) => return Ok(v),
+                    Err(err) => err,
+                };
+
+                f2.apply(trace, vector![err.into()])
+            },
+        );
+
         me
     }
 }
