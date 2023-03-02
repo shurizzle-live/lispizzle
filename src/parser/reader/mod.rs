@@ -27,8 +27,11 @@ use str_reader::*;
 //                 char
 // ✔️  Nil        #nil
 // ✔️  Boolean    #[tf]
-// ✔️  String     "([^"]|\\(["vtrn\\]|x[0-9a-zA-Z]{2}|u([0-9a-zA-Z]{4}|\{u[0-9a-zA-Z]+\})))"
-// ✔️  Integer    [+-][0-9]+
+// ✔️  String     "([^"]|\\(["vtrn\\]|x[0-9a-zA-Z]{2}|u([0-9a-zA-Z]{4}|\{[0-9a-zA-Z]+\})))"
+// ✔️  Integer    [+-]?[0-9]+
+//               #o[+-]?[0-7]+
+//               #x[+-]?[0-9a-fA-F]+
+//               #b[+-]?[0-1]+
 // ✔️  Symbol     [^\s,'@`()\"|#]+
 // ✔️  List       ((list|literal)*)
 
@@ -182,6 +185,51 @@ fn char_equals_ci(a: char, b: char) -> bool {
     let b = b.to_lowercase();
 
     a.len() == b.len() && a.zip(b).all(|(a, b)| a == b)
+}
+
+fn radix_integer<'a>(init: Input, i: Input<'a>, valid: &[char], radix: i32) -> Result<'a, Value> {
+    let len = i
+        .as_str()
+        .chars()
+        .enumerate()
+        .take_while(|&(i, c)| {
+            if i == 0 {
+                c == '-' || c == '+' || valid.contains(&c)
+            } else {
+                valid.contains(&c)
+            }
+        })
+        .count();
+
+    let (parsed, i) = unsafe { split_at(i, len).unwrap_unchecked() };
+
+    i.ok(Integer::parse_radix(parsed.as_str(), radix)
+        .map_err(|_| init.err("invalid number"))?
+        .complete()
+        .into())
+}
+
+#[inline(always)]
+fn bin_number<'a>(init: Input, i: Input<'a>) -> Result<'a, Value> {
+    radix_integer(init, i, &['0', '1'][..], 2)
+}
+
+#[inline(always)]
+fn oct_number<'a>(init: Input, i: Input<'a>) -> Result<'a, Value> {
+    radix_integer(init, i, &['0', '1', '2', '3', '4', '5', '6', '7'][..], 8)
+}
+
+#[inline(always)]
+fn hex_number<'a>(init: Input, i: Input<'a>) -> Result<'a, Value> {
+    radix_integer(
+        init,
+        i,
+        &[
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'A',
+            'B', 'C', 'D', 'E', 'F',
+        ][..],
+        16,
+    )
 }
 
 fn symbol_or_integer(i: Input) -> Result<Value> {
@@ -396,7 +444,7 @@ fn parse_char<'a>(init: Input<'a>, i: Input<'a>) -> Result<'a, Value> {
     Err(init.err("invalid character"))
 }
 
-fn nil_or_bool_or_char(i: Input) -> Result<Value> {
+fn hash_prefixed(i: Input) -> Result<Value> {
     let init = i.clone();
     let i = needs_char(i, '#')?;
 
@@ -408,6 +456,12 @@ fn nil_or_bool_or_char(i: Input) -> Result<Value> {
         i.set_needs_ws().ok(false.into())
     } else if let Some(i) = istarts_with(i.clone(), "\\") {
         parse_char(init, i)
+    } else if let Some(i) = istarts_with_ci(i.clone(), "b") {
+        bin_number(init, i)
+    } else if let Some(i) = istarts_with_ci(i.clone(), "o") {
+        oct_number(init, i)
+    } else if let Some(i) = istarts_with_ci(i.clone(), "x") {
+        hex_number(init, i)
     } else if i.is_empty() {
         Err(i.err("unexpected EOF"))
     } else {
@@ -419,7 +473,7 @@ fn literal(i: Input) -> Result<Value> {
     if let Some(c) = i.peek() {
         match c {
             '"' => return string(i),
-            '#' => return nil_or_bool_or_char(i),
+            '#' => return hash_prefixed(i),
             _ => (),
         }
     }
@@ -548,6 +602,9 @@ mod tests {
         assert_fp_eq!(symbol_or_integer(Input::new(None, "-0000000")), 0.into());
         assert_fp_eq!(symbol_or_integer(Input::new(None, "-1")), (-1).into());
         assert_fp_eq!(symbol_or_integer(Input::new(None, "1")), 1.into());
+        assert_fp_eq!(expression(Input::new(None, "#b-11")), (-3).into());
+        assert_fp_eq!(expression(Input::new(None, "#o-77")), (-63).into());
+        assert_fp_eq!(expression(Input::new(None, "#x-ff")), (-255).into());
     }
 
     #[test]
@@ -584,17 +641,14 @@ mod tests {
 
     #[test]
     fn char() {
-        assert_fp_eq!(nil_or_bool_or_char(Input::new(None, "#\\x")), 'x'.into());
+        assert_fp_eq!(hash_prefixed(Input::new(None, "#\\x")), 'x'.into());
         assert_fp_eq!(
-            nil_or_bool_or_char(Input::new(None, "#\\x0000000000000000a")),
+            hash_prefixed(Input::new(None, "#\\x0000000000000000a")),
             '\n'.into()
         );
-        assert_fp_eq!(
-            nil_or_bool_or_char(Input::new(None, "#\\nEwLiNe")),
-            '\n'.into()
-        );
-        assert_fp_eq!(nil_or_bool_or_char(Input::new(None, "#\\12")), '\n'.into());
-        assert_fp_eq!(nil_or_bool_or_char(Input::new(None, "#\\n")), 'n'.into());
-        assert_fp_eq!(nil_or_bool_or_char(Input::new(None, "#\\ ")), ' '.into());
+        assert_fp_eq!(hash_prefixed(Input::new(None, "#\\nEwLiNe")), '\n'.into());
+        assert_fp_eq!(hash_prefixed(Input::new(None, "#\\12")), '\n'.into());
+        assert_fp_eq!(hash_prefixed(Input::new(None, "#\\n")), 'n'.into());
+        assert_fp_eq!(hash_prefixed(Input::new(None, "#\\ ")), ' '.into());
     }
 }
