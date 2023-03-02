@@ -16,7 +16,6 @@ pub fn transform(
         "if" => Some(iff(trace, env, args)),
         "set!" => Some(set_em_(trace, env, args)),
         "current-environment" => Some(current_environment(trace, env, args)),
-        "macroexpand" => Some(macroexpand(trace, env, args)),
         _ => None,
     }
 }
@@ -156,26 +155,4 @@ fn current_environment(
     } else {
         Err(trace.error("syntax-error", None))
     }
-}
-
-fn macroexpand(
-    trace: BackTrace,
-    oenv: Environment,
-    mut args: Vector<Value>,
-) -> Result<Value, Error> {
-    let env = if args.len() == 1 {
-        oenv
-    } else if args.len() == 2 {
-        if let Value::Environment(env) = args.remove(1).eval(trace.clone(), oenv)? {
-            env
-        } else {
-            return Err(trace.error("wrong-type-arg", None));
-        }
-    } else {
-        return Err(trace.error("syntax-error", None));
-    };
-
-    args.remove(0)
-        .eval(trace.clone(), env.clone())?
-        .macroexpand(trace, env)
 }

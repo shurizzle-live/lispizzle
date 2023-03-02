@@ -444,6 +444,42 @@ impl Default for Environment {
 
         define_fn(
             &me,
+            "$macroexpand",
+            Parameters::Exact(2),
+            Option::<&str>::None,
+            |trace, mut values| {
+                let env = if let Value::Environment(env) = values.remove(1) {
+                    env
+                } else {
+                    return Err(trace.error("wrong-type-arg", None));
+                };
+                values.remove(0).macroexpand(trace, env)
+            },
+        );
+
+        define_macro(
+            &me,
+            "macroexpand",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(2) }),
+            Option::<&str>::None,
+            |trace, mut values| {
+                let env = match values.len() {
+                    1 => vector![Symbol::Name("current-environment".into()).into()].into(),
+                    2 => values.remove(1),
+                    _ => return Err(trace.error("wrong-number-of-args", None)),
+                };
+
+                Ok(vector![
+                    Symbol::Name("$macroexpand".into()).into(),
+                    values.remove(0),
+                    env
+                ]
+                .into())
+            },
+        );
+
+        define_fn(
+            &me,
             "backtrace",
             Parameters::Exact(0),
             Option::<&str>::None,
