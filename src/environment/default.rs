@@ -538,6 +538,54 @@ impl Default for Environment {
             },
         );
 
+        define_fn(
+            &me,
+            "substring",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(3) }),
+            Option::<&str>::None,
+            |mut ctx, mut values| {
+                #[inline(always)]
+                fn string(ctx: &Context, v: Value) -> Result<Str, Error> {
+                    if let Value::String(str) = v {
+                        Ok(str)
+                    } else {
+                        Err(ctx.trace().error("wrong-type-arg", None))
+                    }
+                }
+
+                #[inline]
+                fn index(ctx: &Context, v: Value) -> Result<usize, Error> {
+                    if let Value::Integer(i) = v {
+                        if let Some(i) = i.to_usize() {
+                            Ok(i)
+                        } else {
+                            Err(ctx.trace().error("out-of-range", None))
+                        }
+                    } else {
+                        Err(ctx.trace().error("wrong-type-arg", None))
+                    }
+                }
+
+                let (s, start, len) = match values.len() {
+                    2 => (
+                        string(&ctx, values.remove(0))?,
+                        index(&ctx, values.remove(0))?,
+                        None,
+                    ),
+                    3 => (
+                        string(&ctx, values.remove(0))?,
+                        index(&ctx, values.remove(0))?,
+                        Some(index(&ctx, values.remove(0))?),
+                    ),
+                    _ => return Err(ctx.trace().error("wrong-number-of-args", None)),
+                };
+
+                s.substring_in_context(&mut ctx, start, len)
+                    .map(Into::into)
+                    .ok_or_else(|| ctx.trace().error("out-of-range", None))
+            },
+        );
+
         me
     }
 }

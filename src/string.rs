@@ -2,7 +2,10 @@ use std::{borrow::Borrow, fmt, hash::Hash, mem};
 
 use ecow::{EcoString, EcoVec};
 
-use crate::parser::reader::util::{CountChars, SkipChars};
+use crate::{
+    parser::reader::util::{CountChars, SkipChars},
+    Context,
+};
 
 #[derive(Clone)]
 enum Repr {
@@ -13,6 +16,43 @@ enum Repr {
 
 #[derive(Clone)]
 pub struct Str(Repr);
+
+enum SubStr<'a> {
+    Static(&'static str, usize),
+    Alloc(&'a str, usize),
+}
+
+impl<'a> Borrow<str> for SubStr<'a> {
+    #[inline]
+    fn borrow(&self) -> &str {
+        match self {
+            Self::Static(s, _) => s,
+            Self::Alloc(s, _) => s,
+        }
+    }
+}
+
+#[allow(clippy::from_over_into)]
+impl<'a> Into<Str> for SubStr<'a> {
+    fn into(self) -> Str {
+        match self {
+            Self::Static(s, l) => {
+                if s.is_empty() {
+                    Str(Repr::Empty)
+                } else {
+                    Str(Repr::Static(s, l))
+                }
+            }
+            Self::Alloc(s, l) => {
+                if s.is_empty() {
+                    Str(Repr::Empty)
+                } else {
+                    Str(Repr::Alloc(EcoVec::from(s.as_bytes()), l))
+                }
+            }
+        }
+    }
+}
 
 impl Repr {
     pub fn as_str(&self) -> &str {
@@ -44,6 +84,46 @@ impl Repr {
             Self::Empty => 0,
             Self::Static(s, _) => s.len(),
             Self::Alloc(s, _) => s.len(),
+        }
+    }
+
+    fn substr(&self, start: usize, rlen: Option<usize>) -> Option<SubStr> {
+        let len = self.len();
+
+        if start > len {
+            return None;
+        }
+        let new_len = len - start;
+
+        let rlen = if let Some(l) = rlen {
+            if l > new_len {
+                return None;
+            } else {
+                l
+            }
+        } else {
+            new_len
+        };
+
+        if matches!(self, Self::Empty) {
+            return Some(SubStr::Static("", 0));
+        }
+
+        let s = unsafe { self.as_str().skip_chars(start).unwrap_unchecked() };
+        let bstart = self.bytes_len() - s.len();
+        let bsize = if new_len == rlen {
+            self.bytes_len() - bstart
+        } else {
+            unsafe { s.skip_chars(rlen).unwrap_unchecked().len() }
+        };
+
+        match self {
+            Self::Empty => unreachable!(),
+            Self::Static(s, _) => Some(SubStr::Static(&s[bstart..(bstart + bsize)], new_len)),
+            Self::Alloc(ref s, _) => Some(SubStr::Alloc(
+                unsafe { std::str::from_utf8_unchecked(s.get_unchecked(bstart..(bstart + bsize))) },
+                new_len,
+            )),
         }
     }
 
@@ -81,6 +161,7 @@ impl Repr {
             Self::Empty => unreachable!(),
             Self::Static(s, _) => Some(Self::Static(&s[bstart..(bstart + bsize)], new_len)),
             Self::Alloc(mut s, _) => {
+                _ = s.make_mut();
                 unsafe {
                     std::ptr::copy_nonoverlapping(
                         s.as_ptr().add(bstart),
@@ -314,6 +395,15 @@ impl Str {
         let mut inner = Repr::Empty;
         mem::swap(self.repr_mut(), &mut inner);
         inner.substring(start, len).map(Self)
+    }
+
+    pub fn substring_in_context(
+        &self,
+        ctx: &mut Context,
+        start: usize,
+        rlen: Option<usize>,
+    ) -> Option<Self> {
+        self.repr().substr(start, rlen).map(|s| ctx.make_string(s))
     }
 
     #[inline]

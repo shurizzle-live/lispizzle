@@ -30,7 +30,7 @@ impl StrCache {
     }
 
     #[inline]
-    pub fn get<T: Borrow<str> + Into<Str>>(&mut self, s: T) -> Str {
+    pub fn get<'a, 'b, T: Borrow<str> + Into<Str> + 'a>(&'b mut self, s: T) -> Str {
         RefCell::borrow_mut(&*self.0).get(s)
     }
 }

@@ -10,4 +10,8 @@
 (println (backtrace))
 (println (0 (backtrace)))
 
+;; this will print lol
+(print   (substring s 3))
+(println (substring s 3 1))
+
 ;; vim:ft=scheme

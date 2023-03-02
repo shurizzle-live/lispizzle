@@ -35,7 +35,7 @@ impl Context {
     }
 
     #[inline]
-    pub fn make_string<T: Borrow<str> + Into<Str>>(&mut self, s: T) -> Str {
+    pub fn make_string<'a, 'b, T: Borrow<str> + Into<Str> + 'a>(&'b mut self, s: T) -> Str {
         self.cache.get(s)
     }
 }
