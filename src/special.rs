@@ -79,15 +79,16 @@ fn quasiquote(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result
                 match scan(ctx.clone(), env.clone(), v)? {
                     Res::Value(mut v) => {
                         mem::swap(&mut list[i], &mut v);
+                        i += 1;
                     }
                     Res::Splice(values) => {
                         list.remove(i);
-                        for (off, v) in values.into_iter().enumerate() {
-                            list.insert(i + off, v);
+                        for v in values.into_iter() {
+                            list.insert(i, v);
+                            i += 1;
                         }
                     }
                 }
-                i += 1;
             }
 
             Ok(Res::Value(Value::List(list)))

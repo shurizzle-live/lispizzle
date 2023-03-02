@@ -143,13 +143,10 @@ impl Callable for LispProc {
             }
             Parameters::Variadic(ref l) => {
                 let last = l.len() - 1;
-                for (i, sym) in l.iter().enumerate() {
-                    if i == last {
-                        _ = fn_env.set(sym, parameters.clone().into());
-                    } else {
-                        _ = fn_env.set(sym, parameters.remove(0));
-                    }
+                for sym in l.iter().take(last) {
+                    _ = fn_env.set(sym, parameters.remove(0));
                 }
+                _ = fn_env.set(unsafe { l.get(last).unwrap_unchecked() }, parameters.into());
             }
         }
 
