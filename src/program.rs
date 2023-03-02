@@ -19,7 +19,7 @@ impl Program {
         };
 
         let mut args = if let Some(Value::Symbol(Symbol::Name(name))) = list.get(0) {
-            if name == "define" {
+            if name == "def" {
                 list.remove(0);
                 list
             } else {

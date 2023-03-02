@@ -1,5 +1,5 @@
-(define l '(1 2 3 4))
-(define s "hello")
+(def l '(1 2 3 4))
+(def s "hello")
 
 (println (0 l) (1 l) (2 l) (3 l))
 (print   (0 s))
