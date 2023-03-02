@@ -18,4 +18,14 @@
 
 (println (macroexpand '(primitive-eval '(+ x 1))))
 
+(defn 1+ (n)
+  (+ 1 n))
+
+(defmacro inc (name)
+  `(set! ,name (1+ ,name)))
+
+(println x)
+(inc x)
+(println x)
+
 ;; vim:ft=scheme

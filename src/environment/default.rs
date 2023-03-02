@@ -540,6 +540,20 @@ impl Default for Environment {
 
         define_fn(
             &me,
+            "string-length",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |ctx, mut values| {
+                if let Value::String(s) = values.remove(0) {
+                    Ok(s.len().into())
+                } else {
+                    Err(ctx.trace().error("wrong-type-arg", None))
+                }
+            },
+        );
+
+        define_fn(
+            &me,
             "substring",
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(3) }),
             Option::<&str>::None,
