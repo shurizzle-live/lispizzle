@@ -409,8 +409,8 @@ impl fmt::Debug for Value {
             Self::Integer(i) => fmt::Debug::fmt(i, f),
             Self::String(s) => fmt::Debug::fmt(s, f),
             Self::Symbol(s) => fmt::Debug::fmt(s, f),
-            // TODO: `proc` is wrong, it needs to be `fn` or `macro`
-            Self::Fn(l) | Self::Macro(l) => fmt::Debug::fmt(l, f),
+            Self::Fn(p) => p.fmt(f, "fn"),
+            Self::Macro(p) => p.fmt(f, "macro"),
             Self::UnboundFn(_) => write!(f, "#<unbound-fn>"),
             Self::UnboundMacro(_) => write!(f, "#<unbound-macro>"),
             Self::List(l) => print_list_debug(f, l.iter(), "(", ")"),
@@ -439,8 +439,8 @@ impl fmt::Display for Value {
             Self::Integer(i) => fmt::Display::fmt(i, f),
             Self::String(s) => fmt::Display::fmt(s, f),
             Self::Symbol(s) => fmt::Display::fmt(s, f),
-            // TODO: `proc` is wrong, it needs to be `fn` or `macro`
-            Self::Fn(l) | Self::Macro(l) => fmt::Debug::fmt(l, f),
+            Self::Fn(p) => p.fmt(f, "fn"),
+            Self::Macro(p) => p.fmt(f, "macro"),
             Self::UnboundFn(_) => write!(f, "#<unbound-fn>"),
             Self::UnboundMacro(_) => write!(f, "#<unbound-macro>"),
             Self::List(l) => print_list_display(f, l.iter(), "(", ")"),
