@@ -1,6 +1,6 @@
 use im_rc::{vector, Vector};
 
-use crate::{Context, Environment, Error, Str, Symbol, Value};
+use crate::{environment::Bag, Context, Environment, Error, Str, Symbol, Value};
 
 use std::mem;
 
@@ -18,6 +18,10 @@ pub fn transform(
         "def" => Some(def(ctx, env, args, in_block)),
         "set!" => Some(set_em_(ctx, env, args, in_block)),
         "current-environment" => Some(current_environment(ctx, env, args, in_block)),
+        "let" => Some(r#let(ctx, env, args)),
+        "let*" => Some(r#let_star_(ctx, env, args)),
+        "letrec" => Some(r#letrec(ctx, env, args)),
+        "letrec*" => Some(r#letrec_star_(ctx, env, args)),
         _ => None,
     }
 }
@@ -216,11 +220,174 @@ fn def(
         _ => (),
     }
 
-    if env.is_toplevel() {
-        env.define(name, value);
-    } else {
-        _ = env.set(name, value);
-    }
+    env.define(name, value);
 
     Ok(Value::Unspecified)
+}
+
+fn r#let(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+    if args.len() < 2 {
+        return Err(ctx.trace().error("syntax-error", None));
+    }
+
+    let mut bindings = if let Value::List(b) = args.remove(0) {
+        b
+    } else {
+        return Err(ctx.trace().error("syntax-error", None));
+    };
+
+    if bindings.len() % 2 != 0 {
+        return Err(ctx.trace().error("syntax-error", None));
+    }
+
+    let block_env = env.child::<Symbol, _>([]);
+    while !bindings.is_empty() {
+        let name = if let Value::Symbol(sym) = bindings.remove(0) {
+            sym
+        } else {
+            return Err(ctx.trace().error("syntax-error", None));
+        };
+
+        let value = bindings
+            .remove(0)
+            .macroexpand(ctx.clone(), env.clone(), false)?
+            .eval(ctx.clone(), env.clone(), false)?;
+
+        block_env.define(name, value);
+    }
+
+    let mut last = Value::Unspecified;
+    for exp in args {
+        last = exp
+            .macroexpand(ctx.clone(), block_env.clone(), true)?
+            .eval(ctx.clone(), block_env.clone(), true)?;
+    }
+    Ok(last)
+}
+
+fn r#let_star_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+    if args.len() < 2 {
+        return Err(ctx.trace().error("syntax-error", None));
+    }
+
+    let mut bindings = if let Value::List(b) = args.remove(0) {
+        b
+    } else {
+        return Err(ctx.trace().error("syntax-error", None));
+    };
+
+    if bindings.len() % 2 != 0 {
+        return Err(ctx.trace().error("syntax-error", None));
+    }
+
+    let block_env = env.child::<Symbol, _>([]);
+    while !bindings.is_empty() {
+        let name = if let Value::Symbol(sym) = bindings.remove(0) {
+            sym
+        } else {
+            return Err(ctx.trace().error("syntax-error", None));
+        };
+
+        let value = bindings
+            .remove(0)
+            .macroexpand(ctx.clone(), block_env.clone(), false)?
+            .eval(ctx.clone(), block_env.clone(), false)?;
+
+        block_env.define(name, value);
+    }
+
+    let mut last = Value::Unspecified;
+    for exp in args {
+        last = exp
+            .macroexpand(ctx.clone(), block_env.clone(), true)?
+            .eval(ctx.clone(), block_env.clone(), true)?;
+    }
+    Ok(last)
+}
+
+fn r#letrec(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+    if args.len() < 2 {
+        return Err(ctx.trace().error("syntax-error", None));
+    }
+
+    let mut bindings = if let Value::List(b) = args.remove(0) {
+        b
+    } else {
+        return Err(ctx.trace().error("syntax-error", None));
+    };
+
+    if bindings.len() % 2 != 0 {
+        return Err(ctx.trace().error("syntax-error", None));
+    }
+
+    let mut total = Bag::new();
+    let block_env = env.child::<Symbol, _>([]);
+    while !bindings.is_empty() {
+        let name = if let Value::Symbol(sym) = bindings.remove(0) {
+            sym
+        } else {
+            return Err(ctx.trace().error("syntax-error", None));
+        };
+
+        block_env.define(name.clone(), Value::Unspecified);
+
+        let value = bindings
+            .remove(0)
+            .macroexpand(ctx.clone(), block_env.clone(), false)?
+            .eval(ctx.clone(), block_env.clone(), false)?;
+
+        _ = block_env.set(name, value);
+        total.merge(unsafe { block_env.take_bag() });
+    }
+    unsafe { block_env.set_bag(total) };
+
+    let mut last = Value::Unspecified;
+    for exp in args {
+        last = exp
+            .macroexpand(ctx.clone(), block_env.clone(), true)?
+            .eval(ctx.clone(), block_env.clone(), true)?;
+    }
+    Ok(last)
+}
+
+fn r#letrec_star_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+    if args.len() < 2 {
+        return Err(ctx.trace().error("syntax-error", None));
+    }
+
+    let mut bindings = if let Value::List(b) = args.remove(0) {
+        b
+    } else {
+        return Err(ctx.trace().error("syntax-error", None));
+    };
+
+    if bindings.len() % 2 != 0 {
+        return Err(ctx.trace().error("syntax-error", None));
+    }
+
+    let block_env = env.child::<Symbol, _>([]);
+    while !bindings.is_empty() {
+        let name = if let Value::Symbol(sym) = bindings.remove(0) {
+            sym
+        } else {
+            return Err(ctx.trace().error("syntax-error", None));
+        };
+
+        block_env.define(name.clone(), Value::Unspecified);
+
+        let value = bindings
+            .remove(0)
+            .macroexpand(ctx.clone(), block_env.clone(), false)?
+            .eval(ctx.clone(), block_env.clone(), false)?;
+
+        _ = block_env.set(name, value);
+    }
+
+    let mut last = Value::Unspecified;
+    for exp in args {
+        last = exp
+            .macroexpand(ctx.clone(), block_env.clone(), true)?
+            .eval(ctx.clone(), block_env.clone(), true)?;
+    }
+    Ok(last)
 }

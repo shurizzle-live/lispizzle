@@ -14,7 +14,6 @@ mod unbound {
     struct Repr {
         source: Option<Vector<Value>>,
         parameters: Parameters<Vector<Symbol>, Vector<Symbol>>,
-        defs: Vector<Symbol>,
         doc: Option<Str>,
         body: Vector<Value>,
     }
@@ -25,14 +24,12 @@ mod unbound {
         pub fn new(
             source: Option<Vector<Value>>,
             parameters: Parameters<Vector<Symbol>, Vector<Symbol>>,
-            defs: Vector<Symbol>,
             doc: Option<Str>,
             body: Vector<Value>,
         ) -> Self {
             Self(Rc::new(Repr {
                 source,
                 parameters,
-                defs,
                 doc,
                 body,
             }))
@@ -43,7 +40,6 @@ mod unbound {
                 env,
                 self.source(),
                 self.0.parameters.clone(),
-                self.0.defs.clone(),
                 self.0.doc.clone(),
                 self.0.body.clone(),
             )
@@ -91,7 +87,6 @@ pub(crate) struct Repr {
     env: Environment,
     source: Value,
     parameters: Parameters<Vector<Symbol>, Vector<Symbol>>,
-    defs: Vector<Symbol>,
     doc: Option<Str>,
     body: Vector<Value>,
 }
@@ -103,7 +98,6 @@ impl LispProc {
         env: Environment,
         source: Value,
         parameters: Parameters<Vector<Symbol>, Vector<Symbol>>,
-        defs: Vector<Symbol>,
         doc: Option<Str>,
         body: Vector<Value>,
     ) -> Self {
@@ -111,7 +105,6 @@ impl LispProc {
             env,
             source,
             parameters,
-            defs,
             doc,
             body,
         }))
@@ -158,10 +151,7 @@ impl Callable for LispProc {
             Parameters::Exact(ref l) => l.clone(),
             Parameters::Variadic(ref l) => l.clone(),
         };
-        let fn_env = self
-            .0
-            .env
-            .child(pars.into_iter().chain(self.0.defs.clone().into_iter()));
+        let fn_env = self.0.env.child(pars.into_iter());
 
         match self.0.parameters {
             Parameters::Exact(ref l) => {
@@ -180,7 +170,11 @@ impl Callable for LispProc {
 
         let mut last = Value::Unspecified;
         for exp in self.0.body.iter().cloned() {
-            last = exp.eval(ctx.clone(), fn_env.clone(), true)?;
+            last = exp.macroexpand(ctx.clone(), fn_env.clone(), true)?.eval(
+                ctx.clone(),
+                fn_env.clone(),
+                true,
+            )?;
         }
         Ok(last)
     }

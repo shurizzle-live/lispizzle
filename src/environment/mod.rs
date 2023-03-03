@@ -7,12 +7,13 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     fmt,
     hash::Hash,
+    mem,
     rc::Rc,
 };
 
 use crate::{Symbol, Value, Var};
 
-use bag::Bag;
+pub use bag::Bag;
 
 struct Repr {
     parent: Option<Rc<RefCell<Repr>>>,
@@ -27,6 +28,7 @@ impl Repr {
     }
 
     #[inline]
+    #[allow(dead_code)]
     fn parent_mut(&self) -> Option<RefMut<Repr>> {
         self.parent.as_ref().map(|r| RefCell::borrow_mut(r))
     }
@@ -54,10 +56,6 @@ impl Repr {
     }
 
     pub fn define<I: Into<Symbol>>(&mut self, key: I, value: Value) {
-        if let Some(mut p) = self.parent_mut() {
-            return p.define(key, value);
-        }
-
         let key = key.into();
 
         if matches!(&key, Symbol::Gensym(env, _) if *env == (self as *const _ as usize))
@@ -80,6 +78,21 @@ impl Repr {
     #[inline]
     pub fn is_toplevel(&self) -> bool {
         self.parent.is_none()
+    }
+
+    #[must_use]
+    #[inline]
+    pub unsafe fn take_bag(&mut self) -> Bag {
+        let mut bag = Bag::new();
+        mem::swap(&mut bag, &mut self.bag);
+        bag
+    }
+
+    #[must_use]
+    #[inline]
+    pub unsafe fn set_bag(&mut self, mut other: Bag) -> Bag {
+        mem::swap(&mut other, &mut self.bag);
+        other
     }
 }
 
@@ -150,6 +163,20 @@ impl Environment {
     #[inline]
     pub fn is_toplevel(&self) -> bool {
         RefCell::borrow(&*self.0).is_toplevel()
+    }
+
+    /// # Safety
+    /// It's unsafe to change the current scope but we need it for letrec
+    #[inline]
+    pub unsafe fn take_bag(&self) -> Bag {
+        RefCell::borrow_mut(&*self.0).take_bag()
+    }
+
+    /// # Safety
+    /// It's unsafe to change the current scope but we need it for letrec
+    #[inline]
+    pub unsafe fn set_bag(&self, other: Bag) -> Bag {
+        RefCell::borrow_mut(&*self.0).set_bag(other)
     }
 }
 

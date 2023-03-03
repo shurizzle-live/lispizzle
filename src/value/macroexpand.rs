@@ -26,9 +26,11 @@ fn _expand(me: Value, ctx: Context, env: Environment) -> Result<Expanded1, Error
             if l.len() != 2 {
                 return Err(ctx.trace().error("syntax-error", None));
             }
-            l.remove(0);
-            return expand_quasiquote(unsafe { l.pop_front().unwrap_unchecked() }, ctx, env)
-                .map(Break);
+
+            let expanded = expand_quasiquote(l.remove(1), ctx, env)?;
+            l.push_back(expanded);
+
+            return Ok(Break(Value::List(l)));
         } else if let Some(var) = env.get(sym) {
             var.get()
         } else {
@@ -50,21 +52,33 @@ fn _expand(me: Value, ctx: Context, env: Environment) -> Result<Expanded1, Error
 
 fn expand_quasiquote(me: Value, ctx: Context, env: Environment) -> Result<Value, Error> {
     if let Value::List(mut list) = me {
-        if let Some(Value::Symbol(Symbol::Name(name))) = list.get(0) {
-            if name == "unquote" || name == "unquote-splicing" {
-                if list.len() == 2 {
-                    let exp = list.remove(1).macroexpand(ctx, env, false)?;
-                    list.insert(1, exp);
-                    Ok(Value::List(list))
-                } else {
-                    Err(ctx.trace().error("syntax-error", None))
-                }
-            } else {
-                Ok(Value::List(list))
-            }
+        let unquote = if let Some(Value::Symbol(Symbol::Name(name))) = list.get(0) {
+            name == "unquote" || name == "unquote-splicing"
         } else {
-            Ok(Value::List(list))
+            false
+        };
+
+        if unquote {
+            return if list.len() == 2 {
+                let expanded = list.remove(1).macroexpand(ctx, env, false)?;
+                list.push_back(expanded);
+                return Ok(Value::List(list));
+            } else {
+                Err(ctx.trace().error("syntax-error", None))
+            };
         }
+
+        let mut i = 0;
+        while i < list.len() {
+            let mut v = Value::Nil;
+            mem::swap(&mut v, &mut list[i]);
+            v = expand_quasiquote(v, ctx.clone(), env.clone())?;
+            mem::swap(&mut v, &mut list[i]);
+
+            i += 1;
+        }
+
+        Ok(Value::List(list))
     } else {
         Ok(me)
     }
@@ -73,7 +87,7 @@ fn expand_quasiquote(me: Value, ctx: Context, env: Environment) -> Result<Value,
 fn is_def(me: &Value) -> bool {
     if let Value::List(l) = me {
         if let Some(Value::Symbol(Symbol::Name(name))) = l.get(0) {
-            if name == "def" {
+            if name == "def" || name == "let" {
                 return true;
             }
         }

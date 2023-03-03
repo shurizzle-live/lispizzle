@@ -8,7 +8,8 @@
 
 (defn test ()
   "this is a test"
-  (println "test"))
+  (let (t "calling test")
+    (println t)))
 
 (println (fn-name test))
 (println (fn-doc  test))

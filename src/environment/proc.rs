@@ -5,62 +5,6 @@ use crate::{
     Context, Error, Symbol, Value,
 };
 
-pub fn subst_defs(ctx: &Context, exprs: &mut Vector<Value>) -> Result<Vector<Symbol>, Error> {
-    let mut vars = Vector::<Symbol>::new();
-    let mut i = 0;
-    while i < exprs.len() {
-        let delete = {
-            let expr = &mut exprs[i];
-
-            if let Value::List(list) = expr {
-                let is_def = if let Some(Value::Symbol(Symbol::Name(sym))) = list.get(0) {
-                    sym == "def"
-                } else {
-                    false
-                };
-
-                if is_def {
-                    match list.len() {
-                        2 => {
-                            if let Value::Symbol(sym) = unsafe { list.get(1).unwrap_unchecked() } {
-                                vars.push_back(sym.clone());
-                                true
-                            } else {
-                                return Err(ctx.trace().error("syntax-error", None));
-                            }
-                        }
-                        3 => {
-                            if let Value::Symbol(sym) = unsafe { list.get(1).unwrap_unchecked() } {
-                                vars.push_back(sym.clone());
-                            } else {
-                                return Err(ctx.trace().error("syntax-error", None));
-                            }
-                            list[0] = Value::Symbol(Symbol::Name("set!".into()));
-
-                            false
-                        }
-                        _ => {
-                            return Err(ctx.trace().error("syntax-error", None));
-                        }
-                    }
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        };
-
-        if delete {
-            exprs.remove(i);
-        } else {
-            i += 1;
-        }
-    }
-
-    Ok(vars)
-}
-
 pub fn proc_macro(
     mut ctx: Context,
     source: Option<Vector<Value>>,
@@ -118,8 +62,6 @@ pub fn proc_macro(
         Parameters::Exact(pars)
     };
 
-    let defs = subst_defs(&ctx, &mut exprs)?;
-
     if exprs.is_empty() {
         return Err(ctx.trace().error("syntax-error", None));
     }
@@ -136,5 +78,5 @@ pub fn proc_macro(
         None
     };
 
-    Ok(UnboundProc::new(source, pars, defs, doc, exprs))
+    Ok(UnboundProc::new(source, pars, doc, exprs))
 }

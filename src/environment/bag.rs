@@ -7,13 +7,13 @@ use std::{
 use crate::{Symbol, Value, Var};
 
 #[derive(Clone)]
-enum BagRepr<S = RandomState> {
+enum Repr<S = RandomState> {
     Empty,
     Single(Symbol, Var),
     Map(HashMap<Symbol, Var, S>),
 }
 
-impl BagRepr {
+impl Repr {
     pub fn insert(self, key: Symbol, var: Var) -> (Self, Option<Var>) {
         match self {
             Self::Empty => (Self::Single(key, var), None),
@@ -48,9 +48,26 @@ impl BagRepr {
             Self::Map(ref map) => map.get(key.borrow()).cloned(),
         }
     }
+
+    pub fn merge(self, other: Repr) -> Self {
+        match other {
+            Self::Empty => self,
+            Self::Single(name, var) => {
+                let (me, _) = self.insert(name, var);
+                me
+            }
+            Self::Map(map) => {
+                let mut me = self;
+                for (name, var) in map {
+                    (me, _) = me.insert(name, var);
+                }
+                me
+            }
+        }
+    }
 }
 
-impl fmt::Debug for BagRepr {
+impl fmt::Debug for Repr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut x = f.debug_map();
 
@@ -64,16 +81,16 @@ impl fmt::Debug for BagRepr {
 }
 
 #[derive(Clone)]
-pub struct Bag<S = RandomState>(BagRepr<S>);
+pub struct Bag<S = RandomState>(Repr<S>);
 
 impl Bag {
     #[inline]
     pub fn new() -> Self {
-        Self(BagRepr::Empty)
+        Self(Repr::Empty)
     }
 
     pub fn insert(&mut self, key: Symbol, var: Var) -> Option<Var> {
-        let mut bag = BagRepr::Empty;
+        let mut bag = Repr::Empty;
         mem::swap(&mut self.0, &mut bag);
         let old;
         (bag, old) = bag.insert(key, var);
@@ -85,6 +102,13 @@ impl Bag {
     #[inline]
     pub fn get<B: Borrow<Symbol>>(&self, key: B) -> Option<Var> {
         self.0.get(key)
+    }
+
+    pub fn merge(&mut self, other: Bag) {
+        let mut bag = Repr::Empty;
+        mem::swap(&mut self.0, &mut bag);
+        (bag) = bag.merge(other.0);
+        mem::swap(&mut self.0, &mut bag);
     }
 }
 
