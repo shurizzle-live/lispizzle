@@ -24,9 +24,9 @@
 (println "`(1 ,@`(2 ,(+ 1 2))) =" `(1 ,@`(2 ,(+ 1 2))))
 
 ;; get procedure name
-(print       (procedure-name +))
+(print       (fn-name +))
 ;; get procedure documentation
-(println ":" (procedure-documentation +))
+(println ":" (fn-doc +))
 
 (println (if #f "this is gone to print #<unspecified>"))
 (println (if #f #nil "Hello, I'm the `else` branch"))

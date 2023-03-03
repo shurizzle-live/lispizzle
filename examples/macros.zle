@@ -10,7 +10,8 @@
   "this is a test"
   (println "test"))
 
-(println (fn-doc test))
+(println (fn-name test))
+(println (fn-doc  test))
 
 (test)
 
