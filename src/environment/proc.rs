@@ -61,7 +61,11 @@ pub fn subst_defs(ctx: &Context, exprs: &mut Vector<Value>) -> Result<Vector<Sym
     Ok(vars)
 }
 
-pub fn proc_macro(mut ctx: Context, mut exprs: Vector<Value>) -> Result<UnboundProc, Error> {
+pub fn proc_macro(
+    mut ctx: Context,
+    source: Option<Vector<Value>>,
+    mut exprs: Vector<Value>,
+) -> Result<UnboundProc, Error> {
     let pars = if let Value::List(pars) = exprs.remove(0) {
         pars
     } else {
@@ -132,5 +136,5 @@ pub fn proc_macro(mut ctx: Context, mut exprs: Vector<Value>) -> Result<UnboundP
         None
     };
 
-    Ok(UnboundProc::new(pars, defs, doc, exprs))
+    Ok(UnboundProc::new(source, pars, defs, doc, exprs))
 }

@@ -5,13 +5,14 @@ use im_rc::Vector;
 use crate::{proc::Parameters, Environment, Str, Symbol, Value};
 
 mod unbound {
-    use std::rc::Rc;
+    use std::{fmt, rc::Rc};
 
     use im_rc::Vector;
 
     use crate::{proc::Parameters, Environment, Str, Symbol, Value};
 
     struct Repr {
+        source: Option<Vector<Value>>,
         parameters: Parameters<Vector<Symbol>, Vector<Symbol>>,
         defs: Vector<Symbol>,
         doc: Option<Str>,
@@ -22,12 +23,14 @@ mod unbound {
 
     impl LispProc {
         pub fn new(
+            source: Option<Vector<Value>>,
             parameters: Parameters<Vector<Symbol>, Vector<Symbol>>,
             defs: Vector<Symbol>,
             doc: Option<Str>,
             body: Vector<Value>,
         ) -> Self {
             Self(Rc::new(Repr {
+                source,
                 parameters,
                 defs,
                 doc,
@@ -38,11 +41,28 @@ mod unbound {
         pub fn eval(&self, env: Environment) -> super::LispProc {
             super::LispProc::new(
                 env,
+                self.source(),
                 self.0.parameters.clone(),
                 self.0.defs.clone(),
                 self.0.doc.clone(),
                 self.0.body.clone(),
             )
+        }
+
+        pub fn source(&self) -> Value {
+            self.0
+                .source
+                .as_ref()
+                .map(|s| s.clone().into())
+                .unwrap_or(Value::Boolean(false))
+        }
+
+        pub fn fmt<T: fmt::Display>(&self, f: &mut fmt::Formatter<'_>, what: T) -> fmt::Result {
+            if let Some(ref source) = self.0.source {
+                fmt::Debug::fmt(&Value::from(source.clone()), f)
+            } else {
+                write!(f, "#<unbound-{}>", what)
+            }
         }
     }
 
@@ -69,6 +89,7 @@ use super::{fmt_parameters, Callable};
 
 pub(crate) struct Repr {
     env: Environment,
+    source: Value,
     parameters: Parameters<Vector<Symbol>, Vector<Symbol>>,
     defs: Vector<Symbol>,
     doc: Option<Str>,
@@ -80,6 +101,7 @@ pub struct LispProc(pub(crate) Rc<Repr>);
 impl LispProc {
     pub fn new(
         env: Environment,
+        source: Value,
         parameters: Parameters<Vector<Symbol>, Vector<Symbol>>,
         defs: Vector<Symbol>,
         doc: Option<Str>,
@@ -87,6 +109,7 @@ impl LispProc {
     ) -> Self {
         Self(Rc::new(Repr {
             env,
+            source,
             parameters,
             defs,
             doc,
@@ -104,6 +127,11 @@ impl LispProc {
             Parameters::Exact(ref l) => l.len(),
             Parameters::Variadic(ref l) => l.len() - 1,
         }
+    }
+
+    #[inline]
+    pub fn source(&self) -> Value {
+        self.0.source.clone()
     }
 
     pub fn fmt_parameters(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

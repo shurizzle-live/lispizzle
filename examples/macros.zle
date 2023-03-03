@@ -10,7 +10,7 @@
   "this is a test"
   (println "test"))
 
-(println (procedure-documentation test))
+(println (fn-doc test))
 
 (test)
 

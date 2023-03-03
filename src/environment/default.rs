@@ -178,9 +178,9 @@ impl Default for Environment {
 
         define_fn(
             &me,
-            "procedure-documentation",
+            "fn-doc",
             Parameters::Exact(1),
-            Some("Return the documentation string associated with `proc'."),
+            Some("Return the documentation string associated with `fn'."),
             |ctx, mut values| {
                 if let Value::Fn(p) = unshift(&mut values) {
                     Ok(p.doc().map(Value::from).unwrap_or(Value::Boolean(false)))
@@ -192,12 +192,68 @@ impl Default for Environment {
 
         define_fn(
             &me,
-            "procedure-name",
+            "fn-name",
             Parameters::Exact(1),
-            Some("Return the name of the procedure."),
+            Some("Return the name of the fn."),
             |ctx, mut values| {
                 if let Value::Fn(p) = unshift(&mut values) {
                     Ok(p.name().into())
+                } else {
+                    Err(ctx.trace().error("wrong-type-arg", None))
+                }
+            },
+        );
+
+        define_fn(
+            &me,
+            "fn-source",
+            Parameters::Exact(1),
+            Some("Return the source of the fn."),
+            |ctx, mut values| {
+                if let Value::Fn(p) = unshift(&mut values) {
+                    Ok(p.source())
+                } else {
+                    Err(ctx.trace().error("wrong-type-arg", None))
+                }
+            },
+        );
+
+        define_fn(
+            &me,
+            "macro-doc",
+            Parameters::Exact(1),
+            Some("Return the documentation string associated with `macro'."),
+            |ctx, mut values| {
+                if let Value::Macro(p) = unshift(&mut values) {
+                    Ok(p.doc().map(Value::from).unwrap_or(Value::Boolean(false)))
+                } else {
+                    Err(ctx.trace().error("wrong-type-arg", None))
+                }
+            },
+        );
+
+        define_fn(
+            &me,
+            "macro-name",
+            Parameters::Exact(1),
+            Some("Return the name of the macro."),
+            |ctx, mut values| {
+                if let Value::Macro(p) = unshift(&mut values) {
+                    Ok(p.name().into())
+                } else {
+                    Err(ctx.trace().error("wrong-type-arg", None))
+                }
+            },
+        );
+
+        define_fn(
+            &me,
+            "macro-source",
+            Parameters::Exact(1),
+            Some("Return the source of the fn."),
+            |ctx, mut values| {
+                if let Value::Macro(p) = unshift(&mut values) {
+                    Ok(p.source())
                 } else {
                     Err(ctx.trace().error("wrong-type-arg", None))
                 }
@@ -605,7 +661,11 @@ impl Default for Environment {
             "fn",
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(3) }),
             Option::<&str>::None,
-            |ctx, args| proc::proc_macro(ctx, args).map(Value::UnboundFn),
+            |ctx, args| {
+                let mut source = args.clone();
+                source.push_front(Value::Symbol(Str::from("fn").into()));
+                proc::proc_macro(ctx, Some(source), args).map(Value::UnboundFn)
+            },
         );
 
         define_macro(
@@ -613,7 +673,11 @@ impl Default for Environment {
             "macro",
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(3) }),
             Option::<&str>::None,
-            |ctx, args| proc::proc_macro(ctx, args).map(Value::UnboundMacro),
+            |ctx, args| {
+                let mut source = args.clone();
+                source.push_front(Value::Symbol(Str::from("macro").into()));
+                proc::proc_macro(ctx, Some(source), args).map(Value::UnboundMacro)
+            },
         );
 
         me

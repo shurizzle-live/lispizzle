@@ -49,6 +49,14 @@ impl Repr {
             Self::Lisp(ref f) => f.min_arity(),
         }
     }
+
+    #[inline]
+    pub fn source(&self) -> Value {
+        match self {
+            Self::Native(_) => false.into(),
+            Self::Lisp(p) => p.source(),
+        }
+    }
 }
 
 impl Callable for Repr {
@@ -140,6 +148,11 @@ impl Proc {
         } else {
             TraceFrame::unnamed(self._addr())
         }
+    }
+
+    #[inline]
+    pub fn source(&self) -> Value {
+        self.repr.source()
     }
 
     pub fn fmt<T: fmt::Display>(&self, f: &mut fmt::Formatter<'_>, what: T) -> fmt::Result {
