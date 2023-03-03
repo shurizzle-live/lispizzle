@@ -207,7 +207,14 @@ fn def(
         return Err(ctx.trace().error("syntax-error", None));
     };
 
-    let value = exp.eval(ctx, env.clone(), true)?;
+    let mut value = exp.eval(ctx, env.clone(), true)?;
+
+    match value {
+        Value::Fn(ref mut p) | Value::Macro(ref mut p) => {
+            p.set_name(name.clone());
+        }
+        _ => (),
+    }
 
     if env.is_toplevel() {
         env.define(name, value);
