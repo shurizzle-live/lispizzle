@@ -180,7 +180,7 @@ impl Callable for LispProc {
 
         let mut last = Value::Unspecified;
         for exp in self.0.body.iter().cloned() {
-            last = exp.eval(ctx.clone(), fn_env.clone())?;
+            last = exp.eval(ctx.clone(), fn_env.clone(), true)?;
         }
         Ok(last)
     }

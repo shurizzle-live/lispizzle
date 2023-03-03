@@ -76,6 +76,11 @@ impl Repr {
         self.gensym += 1;
         sym
     }
+
+    #[inline]
+    pub fn is_toplevel(&self) -> bool {
+        self.parent.is_none()
+    }
 }
 
 #[inline(always)]
@@ -140,6 +145,11 @@ impl Environment {
     #[inline]
     pub fn toplevel(&self) -> Self {
         Self(unsafe { toplevel(&self.0) })
+    }
+
+    #[inline]
+    pub fn is_toplevel(&self) -> bool {
+        RefCell::borrow(&*self.0).is_toplevel()
     }
 }
 

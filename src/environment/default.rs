@@ -168,9 +168,9 @@ impl Default for Environment {
             |ctx, mut values| {
                 let l = unshift(&mut values);
                 match (&l, unshift(&mut values)) {
-                    (Value::List(_), Value::Environment(env)) => {
-                        l.macroexpand(ctx.clone(), env.clone())?.eval(ctx, env)
-                    }
+                    (Value::List(_), Value::Environment(env)) => l
+                        .macroexpand(ctx.clone(), env.clone(), true)?
+                        .eval(ctx, env, true),
                     _ => Err(ctx.trace().error("wrong-type-arg", None)),
                 }
             },
@@ -511,7 +511,7 @@ impl Default for Environment {
                 } else {
                     return Err(ctx.trace().error("wrong-type-arg", None));
                 };
-                values.remove(0).macroexpand(ctx, env)
+                values.remove(0).macroexpand(ctx, env, true)
             },
         );
 

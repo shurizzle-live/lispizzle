@@ -53,7 +53,7 @@ fn expand_quasiquote(me: Value, ctx: Context, env: Environment) -> Result<Value,
         if let Some(Value::Symbol(Symbol::Name(name))) = list.get(0) {
             if name == "unquote" || name == "unquote-splicing" {
                 if list.len() == 2 {
-                    let exp = list.remove(1).macroexpand(ctx, env)?;
+                    let exp = list.remove(1).macroexpand(ctx, env, false)?;
                     list.insert(1, exp);
                     Ok(Value::List(list))
                 } else {
@@ -70,9 +70,29 @@ fn expand_quasiquote(me: Value, ctx: Context, env: Environment) -> Result<Value,
     }
 }
 
-fn expand(mut me: Value, ctx: Context, env: Environment) -> Result<Expanded, Error> {
+fn is_def(me: &Value) -> bool {
+    if let Value::List(l) = me {
+        if let Some(Value::Symbol(Symbol::Name(name))) = l.get(0) {
+            if name == "def" {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn expand(
+    mut me: Value,
+    ctx: Context,
+    env: Environment,
+    in_block: bool,
+) -> Result<Expanded, Error> {
     while {
         let expanded;
+        if in_block && is_def(&me) {
+            return Ok(Continue(me));
+        }
+
         (me, expanded) = match _expand(me, ctx.clone(), env.clone())? {
             Continue(x) => x,
             Break(x) => return Ok(Break(x)),
@@ -82,8 +102,13 @@ fn expand(mut me: Value, ctx: Context, env: Environment) -> Result<Expanded, Err
     Ok(Continue(me))
 }
 
-pub fn macroexpand(me: Value, ctx: Context, env: Environment) -> Result<Value, Error> {
-    let me = match expand(me, ctx.clone(), env.clone())? {
+pub fn macroexpand(
+    me: Value,
+    ctx: Context,
+    env: Environment,
+    in_block: bool,
+) -> Result<Value, Error> {
+    let me = match expand(me, ctx.clone(), env.clone(), in_block)? {
         Continue(x) => x,
         Break(x) => return Ok(x),
     };
@@ -99,7 +124,7 @@ pub fn macroexpand(me: Value, ctx: Context, env: Environment) -> Result<Value, E
         let mut exp = Value::Nil;
         mem::swap(&mut exp, unsafe { me.get_mut(i).unwrap_unchecked() });
 
-        exp = exp.macroexpand(ctx.clone(), env.clone())?;
+        exp = exp.macroexpand(ctx.clone(), env.clone(), false)?;
 
         mem::swap(&mut exp, unsafe { me.get_mut(i).unwrap_unchecked() });
         i += 1;

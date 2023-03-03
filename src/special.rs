@@ -9,13 +9,15 @@ pub fn transform(
     env: Environment,
     name: Str,
     args: Vector<Value>,
+    in_block: bool,
 ) -> Option<Result<Value, Error>> {
     match name.as_str() {
-        "quote" => Some(quote(ctx, env, args)),
-        "quasiquote" => Some(quasiquote(ctx, env, args)),
-        "if" => Some(iff(ctx, env, args)),
-        "set!" => Some(set_em_(ctx, env, args)),
-        "current-environment" => Some(current_environment(ctx, env, args)),
+        "quote" => Some(quote(ctx, env, args, in_block)),
+        "quasiquote" => Some(quasiquote(ctx, env, args, in_block)),
+        "if" => Some(iff(ctx, env, args, in_block)),
+        "def" => Some(def(ctx, env, args, in_block)),
+        "set!" => Some(set_em_(ctx, env, args, in_block)),
+        "current-environment" => Some(current_environment(ctx, env, args, in_block)),
         _ => None,
     }
 }
@@ -30,7 +32,12 @@ fn grab(args: &mut Vector<Value>, n: usize) -> Value {
     args.remove(n)
 }
 
-fn quote(ctx: Context, _env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn quote(
+    ctx: Context,
+    _env: Environment,
+    mut args: Vector<Value>,
+    _in_block: bool,
+) -> Result<Value, Error> {
     if args.len() == 1 {
         Ok(unshift(&mut args))
     } else {
@@ -38,7 +45,12 @@ fn quote(ctx: Context, _env: Environment, mut args: Vector<Value>) -> Result<Val
     }
 }
 
-fn quasiquote(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn quasiquote(
+    ctx: Context,
+    env: Environment,
+    mut args: Vector<Value>,
+    _in_block: bool,
+) -> Result<Value, Error> {
     if args.len() != 1 {
         return Err(ctx.trace().error("syntax-error", None));
     }
@@ -53,13 +65,13 @@ fn quasiquote(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result
             if let Some(Value::Symbol(Symbol::Name(name))) = list.get(0) {
                 if name == "unquote" {
                     return if list.len() == 2 {
-                        grab(&mut list, 1).eval(ctx, env).map(Res::Value)
+                        grab(&mut list, 1).eval(ctx, env, false).map(Res::Value)
                     } else {
                         Err(ctx.trace().error("syntax-error", None))
                     };
                 } else if name == "unquote-splicing" {
                     return if list.len() == 2 {
-                        grab(&mut list, 1).eval(ctx, env).map(|x| {
+                        grab(&mut list, 1).eval(ctx, env, false).map(|x| {
                             if let Value::List(l) = x {
                                 Res::Splice(l)
                             } else {
@@ -103,25 +115,41 @@ fn quasiquote(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result
     }
 }
 
-fn iff(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn iff(
+    ctx: Context,
+    env: Environment,
+    mut args: Vector<Value>,
+    _in_block: bool,
+) -> Result<Value, Error> {
     if args.len() == 2 {
-        if unshift(&mut args).eval(ctx.clone(), env.clone())?.to_bool() {
-            unshift(&mut args).eval(ctx, env)
+        if unshift(&mut args)
+            .eval(ctx.clone(), env.clone(), false)?
+            .to_bool()
+        {
+            unshift(&mut args).eval(ctx, env, false)
         } else {
             Ok(Value::Unspecified)
         }
     } else if args.len() == 3 {
-        if unshift(&mut args).eval(ctx.clone(), env.clone())?.to_bool() {
-            grab(&mut args, 0).eval(ctx, env)
+        if unshift(&mut args)
+            .eval(ctx.clone(), env.clone(), false)?
+            .to_bool()
+        {
+            grab(&mut args, 0).eval(ctx, env, false)
         } else {
-            grab(&mut args, 1).eval(ctx, env)
+            grab(&mut args, 1).eval(ctx, env, false)
         }
     } else {
         Err(ctx.trace().error("syntax-error", None))
     }
 }
 
-fn set_em_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn set_em_(
+    ctx: Context,
+    env: Environment,
+    mut args: Vector<Value>,
+    _in_block: bool,
+) -> Result<Value, Error> {
     if args.len() == 2 {
         let key = if let Value::Symbol(s) = unshift(&mut args) {
             s
@@ -129,7 +157,7 @@ fn set_em_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Va
             return Err(ctx.trace().error("syntax-error", None));
         };
 
-        let value = unshift(&mut args).eval(ctx.clone(), env.clone())?;
+        let value = unshift(&mut args).eval(ctx.clone(), env.clone(), false)?;
         if env.set(&key, value).is_ok() {
             Ok(Value::Unspecified)
         } else {
@@ -146,10 +174,46 @@ fn current_environment(
     ctx: Context,
     env: Environment,
     args: Vector<Value>,
+    _in_block: bool,
 ) -> Result<Value, Error> {
     if args.is_empty() {
         Ok(Value::Environment(env))
     } else {
         Err(ctx.trace().error("syntax-error", None))
     }
+}
+
+fn def(
+    ctx: Context,
+    env: Environment,
+    mut args: Vector<Value>,
+    in_block: bool,
+) -> Result<Value, Error> {
+    if !in_block {
+        return Err(ctx.trace().error("syntax-error", None));
+    }
+
+    let (name, exp) = match args.len() {
+        1 | 2 => (
+            unsafe { args.pop_front().unwrap_unchecked() },
+            args.pop_front().unwrap_or(Value::Unspecified),
+        ),
+        _ => return Err(ctx.trace().error("syntax-error", None)),
+    };
+
+    let name = if let Value::Symbol(sym) = name {
+        sym
+    } else {
+        return Err(ctx.trace().error("syntax-error", None));
+    };
+
+    let value = exp.eval(ctx, env.clone(), true)?;
+
+    if env.is_toplevel() {
+        env.define(name, value);
+    } else {
+        _ = env.set(name, value);
+    }
+
+    Ok(Value::Unspecified)
 }

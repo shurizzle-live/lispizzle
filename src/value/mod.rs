@@ -141,7 +141,7 @@ impl Value {
         }
     }
 
-    pub fn eval(self, ctx: Context, env: Environment) -> Result<Value, Error> {
+    pub fn eval(self, ctx: Context, env: Environment, in_block: bool) -> Result<Value, Error> {
         match self {
             Self::UnboundFn(f) => Ok(Self::Fn(f.eval(env).into())),
             Self::UnboundMacro(f) => Ok(Self::Macro(f.eval(env).into())),
@@ -165,20 +165,21 @@ impl Value {
             Self::List(mut l) => {
                 if let Some(first) = l.pop_front() {
                     if let Self::Symbol(Symbol::Name(ref s)) = first {
-                        if let Some(res) = transform(ctx.clone(), env.clone(), s.clone(), l.clone())
+                        if let Some(res) =
+                            transform(ctx.clone(), env.clone(), s.clone(), l.clone(), in_block)
                         {
                             return res;
                         }
                     }
 
-                    let resolved = first.eval(ctx.clone(), env.clone())?;
+                    let resolved = first.eval(ctx.clone(), env.clone(), false)?;
 
                     if resolved.is_macro() {
                         Err(ctx.trace().error("wrong-type-arg", None))
                     } else {
                         let args = l
                             .into_iter()
-                            .map(|v| v.eval(ctx.clone(), env.clone()))
+                            .map(|v| v.eval(ctx.clone(), env.clone(), false))
                             .collect::<Result<Vector<_>, Error>>()?;
 
                         resolved.apply(ctx, args)
@@ -191,8 +192,13 @@ impl Value {
     }
 
     #[inline(always)]
-    pub fn macroexpand(self, ctx: Context, env: Environment) -> Result<Value, Error> {
-        self::macroexpand::macroexpand(self, ctx, env)
+    pub fn macroexpand(
+        self,
+        ctx: Context,
+        env: Environment,
+        in_block: bool,
+    ) -> Result<Value, Error> {
+        self::macroexpand::macroexpand(self, ctx, env, in_block)
     }
 
     pub fn to_bool(&self) -> bool {
