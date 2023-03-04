@@ -11,6 +11,8 @@ pub const NAMES: &[&str] = [
     "unquote",
     "unquote-splicing",
     "if",
+    "and",
+    "or",
     "def",
     "set!",
     "current-environment",
@@ -39,6 +41,8 @@ where
         "quote" => Some(quote(ctx, env, args).map(Into::into)),
         "quasiquote" => Some(quasiquote(ctx, env, args).map(Into::into)),
         "if" => Some(iff(ctx, env, args, apply_fn)),
+        "or" => Some(or(ctx, env, args).map(Into::into)),
+        "and" => Some(and(ctx, env, args).map(Into::into)),
         "def" => Some(def(ctx, env, args, in_block).map(Into::into)),
         "set!" => Some(set_em_(ctx, env, args, in_block).map(Into::into)),
         "current-environment" => {
@@ -171,6 +175,32 @@ where
     } else {
         Err(ctx.trace().error("syntax-error", None))
     }
+}
+
+fn or(ctx: Context, env: Environment, args: Vector<Value>) -> Result<Value, Error> {
+    let mut res = Value::Boolean(false);
+
+    for exp in args {
+        res = eval::value(exp, ctx.clone(), env.clone(), false)?;
+        if res.to_bool() {
+            break;
+        }
+    }
+
+    Ok(res)
+}
+
+fn and(ctx: Context, env: Environment, args: Vector<Value>) -> Result<Value, Error> {
+    let mut res = Value::Boolean(true);
+
+    for exp in args {
+        res = eval::value(exp, ctx.clone(), env.clone(), false)?;
+        if !res.to_bool() {
+            break;
+        }
+    }
+
+    Ok(res)
 }
 
 fn set_em_(
