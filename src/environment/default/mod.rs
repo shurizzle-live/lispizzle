@@ -1,3 +1,4 @@
+mod lists;
 mod numbers;
 mod procs;
 mod strings;
@@ -18,6 +19,7 @@ impl Default for Environment {
         numbers::add(&me);
         strings::add(&me);
         procs::add(&me);
+        lists::add(&me);
 
         define_fn(
             &me,
@@ -52,14 +54,6 @@ impl Default for Environment {
                 println!();
                 Ok(Value::Nil)
             },
-        );
-
-        define_fn(
-            &me,
-            "list",
-            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
-            Some("Create a list."),
-            |_ctx, values| Ok(values.into()),
         );
 
         define_fn(
@@ -193,17 +187,6 @@ impl Default for Environment {
 
         define_fn(
             &me,
-            "list?",
-            Parameters::Exact(1),
-            Option::<&str>::None,
-            |_ctx, mut values| {
-                let x = values.remove(0);
-                Ok(x.is_list().into())
-            },
-        );
-
-        define_fn(
-            &me,
             "var?",
             Parameters::Exact(1),
             Option::<&str>::None,
@@ -327,20 +310,6 @@ impl Default for Environment {
                 };
 
                 eval::apply(f2, ctx, vector![err.into()])
-            },
-        );
-
-        define_fn(
-            &me,
-            "null?",
-            Parameters::Exact(1),
-            Option::<&str>::None,
-            |ctx, mut values| {
-                if let Value::List(l) = values.remove(0) {
-                    Ok(l.is_empty().into())
-                } else {
-                    Err(ctx.trace().error("wrong-type-arg", None))
-                }
             },
         );
 
