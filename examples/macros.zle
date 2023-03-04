@@ -26,12 +26,13 @@
 (defn $while (cond body env)
       (if (eval cond env)
         (begin
+          ;; this should print every time the same parent because of tco
           (println "parent:" (1 (backtrace)))
           (eval body env)
           ($while cond body env))))
 
 (defmacro while (cond &body)
-  `($while ',cond '(begin ,@body) (current-environment)))
+  `(,$while ',cond '(begin ,@body) (current-environment)))
 
 (def x 0)
 (while (< x 10)
