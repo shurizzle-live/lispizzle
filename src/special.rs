@@ -21,6 +21,7 @@ pub const NAMES: &[&str] = [
     "letrec",
     "letrec*",
     "begin",
+    "while",
 ]
 .as_slice();
 
@@ -43,6 +44,7 @@ where
         "if" => Some(iff(ctx, env, args, apply_fn)),
         "or" => Some(or(ctx, env, args).map(Into::into)),
         "and" => Some(and(ctx, env, args).map(Into::into)),
+        "while" => Some(r#while(ctx, env, args).map(Into::into)),
         "def" => Some(def(ctx, env, args, in_block).map(Into::into)),
         "set!" => Some(set_em_(ctx, env, args, in_block).map(Into::into)),
         "current-environment" => {
@@ -201,6 +203,16 @@ fn and(ctx: Context, env: Environment, args: Vector<Value>) -> Result<Value, Err
     }
 
     Ok(res)
+}
+
+fn r#while(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+    let cond = args.remove(0);
+
+    while eval::value(cond.clone(), ctx.clone(), env.clone(), false)?.to_bool() {
+        eval::block(&args, ctx.clone(), env.clone())?;
+    }
+
+    Ok(Value::Unspecified)
 }
 
 fn set_em_(

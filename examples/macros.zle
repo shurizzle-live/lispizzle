@@ -31,13 +31,13 @@
           (eval body env)
           ($while cond body env))))
 
-(defmacro while (cond &body)
+(defmacro while- (cond &body)
   `(,$while ',cond '(begin ,@body) (current-environment)))
 
 (def x 0)
-(while (< x 10)
-       (println x)
-       (inc x))
+(while- (< x 10)
+        (println x)
+        (inc x))
 (println x)
 
 ;; vim:ft=scheme
