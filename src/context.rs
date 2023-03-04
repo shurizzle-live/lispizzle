@@ -1,11 +1,11 @@
-use std::borrow::Borrow;
+use std::{borrow::Borrow, cell::RefCell, rc::Rc};
 
-use crate::{BackTrace, Str, StrCache, TraceFrame};
+use crate::{BackTrace, Str, StrCache, Symbol, TraceFrame};
 
-#[derive(Clone)]
 pub struct Context {
     cache: StrCache,
     trace: BackTrace,
+    gensym: Rc<RefCell<usize>>,
 }
 
 impl Context {
@@ -19,6 +19,7 @@ impl Context {
         Self {
             cache,
             trace: BackTrace::new(),
+            gensym: Rc::new(RefCell::new(0)),
         }
     }
 
@@ -31,6 +32,7 @@ impl Context {
         Self {
             cache: self.cache.clone(),
             trace: self.trace.with_frame(frame),
+            gensym: Rc::clone(&self.gensym),
         }
     }
 
@@ -38,11 +40,28 @@ impl Context {
     pub fn make_string<'a, 'b, T: Borrow<str> + Into<Str> + 'a>(&'b mut self, s: T) -> Str {
         self.cache.get(s)
     }
+
+    pub fn make_sym(&self) -> Symbol {
+        let mut gensym = RefCell::borrow_mut(&*self.gensym);
+        let res = *gensym;
+        *gensym += 1;
+        Symbol::Gensym(res)
+    }
 }
 
 impl Default for Context {
     #[inline]
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Clone for Context {
+    fn clone(&self) -> Self {
+        Self {
+            cache: self.cache.clone(),
+            trace: self.trace.clone(),
+            gensym: Rc::clone(&self.gensym),
+        }
     }
 }

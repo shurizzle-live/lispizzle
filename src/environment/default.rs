@@ -680,6 +680,14 @@ impl Default for Environment {
             },
         );
 
+        define_fn(
+            &me,
+            "gensym",
+            Parameters::Exact(0),
+            Option::<&str>::None,
+            |ctx, _args| Ok(ctx.make_sym().into()),
+        );
+
         me
     }
 }
