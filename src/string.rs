@@ -444,6 +444,14 @@ impl From<&'static str> for Str {
     }
 }
 
+impl From<String> for Str {
+    fn from(value: String) -> Self {
+        let raw = EcoVec::from(value.as_bytes());
+        let len = raw.count_chars();
+        Self(Repr::Alloc(raw, len))
+    }
+}
+
 impl PartialEq<str> for Str {
     #[inline]
     fn eq(&self, other: &str) -> bool {
