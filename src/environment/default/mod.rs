@@ -301,6 +301,20 @@ impl Default for Environment {
             },
         );
 
+        define_fn(
+            &me,
+            "null?",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |ctx, mut values| {
+                if let Value::List(l) = values.remove(0) {
+                    Ok(l.is_empty().into())
+                } else {
+                    Err(ctx.trace().error("wrong-type-arg", None))
+                }
+            },
+        );
+
         me
     }
 }
