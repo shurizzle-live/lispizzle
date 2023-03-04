@@ -1,22 +1,15 @@
-use crate::{Context, Environment, Error, Value};
+use im_rc::Vector;
 
-pub struct Program(Vec<Value>);
+use crate::{util::eval_block, Context, Environment, Error, Value};
+
+pub struct Program(Vector<Value>);
 
 impl Program {
-    pub fn new(exprs: Vec<Value>) -> Self {
+    pub fn new(exprs: Vector<Value>) -> Self {
         Self(exprs)
     }
 
     pub fn eval(&self, ctx: Context, env: Environment) -> Result<Value, Error> {
-        let mut last = Value::Unspecified;
-        for exp in self.0.iter().cloned() {
-            last = exp.macroexpand(ctx.clone(), env.clone(), true)?.eval(
-                ctx.clone(),
-                env.clone(),
-                true,
-            )?;
-        }
-
-        Ok(last)
+        eval_block(&self.0, ctx, env)
     }
 }

@@ -544,8 +544,8 @@ fn is_eoc(mut i: Input) -> Result<bool> {
     i.ok(res)
 }
 
-pub fn parse(mut i: Input) -> std::result::Result<Vec<Value>, Error> {
-    let mut prog = Vec::new();
+pub fn parse(mut i: Input) -> std::result::Result<Vector<Value>, Error> {
+    let mut prog = Vector::new();
 
     while {
         let eoc;
@@ -554,7 +554,7 @@ pub fn parse(mut i: Input) -> std::result::Result<Vec<Value>, Error> {
     } {
         let e;
         (i, e) = list(i)?;
-        prog.push(e);
+        prog.push_back(e);
     }
 
     Ok(prog)

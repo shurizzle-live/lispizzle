@@ -1,6 +1,6 @@
 use im_rc::{vector, Vector};
 
-use crate::{environment::Bag, Context, Environment, Error, Str, Symbol, Value};
+use crate::{environment::Bag, util::eval_block, Context, Environment, Error, Str, Symbol, Value};
 
 use std::mem;
 
@@ -256,13 +256,7 @@ fn r#let(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Valu
         block_env.define(name, value);
     }
 
-    let mut last = Value::Unspecified;
-    for exp in args {
-        last = exp
-            .macroexpand(ctx.clone(), block_env.clone(), true)?
-            .eval(ctx.clone(), block_env.clone(), true)?;
-    }
-    Ok(last)
+    eval_block(&args, ctx, block_env)
 }
 
 fn r#let_star_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
@@ -296,13 +290,7 @@ fn r#let_star_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Resul
         block_env.define(name, value);
     }
 
-    let mut last = Value::Unspecified;
-    for exp in args {
-        last = exp
-            .macroexpand(ctx.clone(), block_env.clone(), true)?
-            .eval(ctx.clone(), block_env.clone(), true)?;
-    }
-    Ok(last)
+    eval_block(&args, ctx, block_env)
 }
 
 fn r#letrec(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
@@ -341,13 +329,7 @@ fn r#letrec(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<V
     }
     unsafe { block_env.set_bag(total) };
 
-    let mut last = Value::Unspecified;
-    for exp in args {
-        last = exp
-            .macroexpand(ctx.clone(), block_env.clone(), true)?
-            .eval(ctx.clone(), block_env.clone(), true)?;
-    }
-    Ok(last)
+    eval_block(&args, ctx, block_env)
 }
 
 fn r#letrec_star_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
@@ -383,11 +365,5 @@ fn r#letrec_star_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Re
         _ = block_env.set(name, value);
     }
 
-    let mut last = Value::Unspecified;
-    for exp in args {
-        last = exp
-            .macroexpand(ctx.clone(), block_env.clone(), true)?
-            .eval(ctx.clone(), block_env.clone(), true)?;
-    }
-    Ok(last)
+    eval_block(&args, ctx, block_env)
 }

@@ -2,7 +2,7 @@ use std::{fmt, rc::Rc};
 
 use im_rc::Vector;
 
-use crate::{proc::Parameters, Environment, Str, Symbol, Value};
+use crate::{proc::Parameters, util::eval_block, Environment, Str, Symbol, Value};
 
 mod unbound {
     use std::{fmt, rc::Rc};
@@ -168,15 +168,7 @@ impl Callable for LispProc {
             }
         }
 
-        let mut last = Value::Unspecified;
-        for exp in self.0.body.iter().cloned() {
-            last = exp.macroexpand(ctx.clone(), fn_env.clone(), true)?.eval(
-                ctx.clone(),
-                fn_env.clone(),
-                true,
-            )?;
-        }
-        Ok(last)
+        eval_block(&self.0.body, ctx, fn_env)
     }
 }
 
