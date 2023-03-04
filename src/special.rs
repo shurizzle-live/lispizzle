@@ -4,6 +4,21 @@ use crate::{environment::Bag, util::eval_block, Context, Environment, Error, Str
 
 use std::mem;
 
+pub const NAMES: &[&str] = [
+    "quote",
+    "quasiquote",
+    "if",
+    "def",
+    "set!",
+    "current-environment",
+    "let",
+    "let*",
+    "letrec",
+    "letrec*",
+    "begin",
+]
+.as_slice();
+
 pub fn transform(
     ctx: Context,
     env: Environment,

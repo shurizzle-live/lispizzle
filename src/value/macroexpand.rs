@@ -1,7 +1,7 @@
 use std::{mem, ops::ControlFlow};
 use ControlFlow::*;
 
-use crate::{proc::Callable, Context, Environment, Error, Symbol, Value};
+use crate::{proc::Callable, special, Context, Environment, Error, Symbol, Value};
 
 type Expanded1 = ControlFlow<Value, (Value, bool)>;
 
@@ -87,7 +87,7 @@ fn expand_quasiquote(me: Value, ctx: Context, env: Environment) -> Result<Value,
 fn is_def(me: &Value) -> bool {
     if let Value::List(l) = me {
         if let Some(Value::Symbol(Symbol::Name(name))) = l.get(0) {
-            if name == "def" || name == "let" {
+            if special::NAMES.contains(&name.as_str()) {
                 return true;
             }
         }
