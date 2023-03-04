@@ -108,6 +108,33 @@ impl Default for Environment {
 
         define_fn(
             &me,
+            "<",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+            Some("Return `#t' if the list of parameters is monotonically increasing."),
+            |ctx, mut values| {
+                if let Some(prev) = values.pop_front() {
+                    if let Value::Integer(mut prev) = prev {
+                        while let Some(next) = values.pop_front() {
+                            if let Value::Integer(next) = next {
+                                if prev.ge(&next) {
+                                    return Ok(false.into());
+                                }
+                                prev = next;
+                            } else {
+                                return Err(ctx.trace().error("wrong-type-arg", None));
+                            }
+                        }
+                    } else {
+                        return Err(ctx.trace().error("wrong-type-arg", None));
+                    }
+                }
+
+                Ok(true.into())
+            },
+        );
+
+        define_fn(
+            &me,
             "print",
             Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
             Some("Print arguments"),
