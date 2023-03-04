@@ -120,9 +120,12 @@ impl BackTrace {
         Self(v)
     }
 
-    #[inline]
     pub fn get(&self, i: usize) -> Option<TraceFrame> {
-        self.0.get(i).cloned()
+        self.0
+            .len()
+            .checked_sub(1)
+            .and_then(|last| last.checked_sub(i))
+            .and_then(|i| self.0.get(i).cloned())
     }
 
     #[inline]
@@ -162,10 +165,10 @@ impl Eq for BackTrace {}
 impl IntoIterator for BackTrace {
     type Item = TraceFrame;
 
-    type IntoIter = ConsumingIter<TraceFrame>;
+    type IntoIter = std::iter::Rev<ConsumingIter<TraceFrame>>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        self.0.into_iter().rev()
     }
 }
