@@ -688,6 +688,70 @@ impl Default for Environment {
             |ctx, _args| Ok(ctx.make_sym().into()),
         );
 
+        define_macro(
+            &me,
+            "defmacro",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(2) }),
+            Option::<&str>::None,
+            |ctx, mut args| {
+                let name = args.remove(0);
+                let mut source = args.clone();
+                source.push_front(Value::Symbol(Str::from("macro").into()));
+                let r#macro = proc::proc_macro(ctx, Some(source), args).map(Value::UnboundMacro)?;
+                Ok(vector![Value::Symbol(Symbol::Name(Str::from("def"))), name, r#macro].into())
+            },
+        );
+
+        define_macro(
+            &me,
+            "defn",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(2) }),
+            Option::<&str>::None,
+            |ctx, mut args| {
+                let name = args.remove(0);
+                let mut source = args.clone();
+                source.push_front(Value::Symbol(Str::from("fn").into()));
+                let r#macro = proc::proc_macro(ctx, Some(source), args).map(Value::UnboundFn)?;
+                Ok(vector![Value::Symbol(Symbol::Name(Str::from("def"))), name, r#macro].into())
+            },
+        );
+
+        define_fn(
+            &me,
+            "1+",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |ctx, mut args| {
+                if let Value::Integer(mut n) = args.remove(0) {
+                    n.add_assign(1);
+                    Ok(n.into())
+                } else {
+                    Err(ctx.trace().error("wrong-type-arg", None))
+                }
+            },
+        );
+
+        define_macro(
+            &me,
+            "inc",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_ctx, mut args| {
+                let name = args.remove(0);
+                Ok(vector![
+                    Symbol::Name(Str::from("set!")).into(),
+                    name.clone(),
+                    vector![
+                        Symbol::Name(Str::from("+")).into(),
+                        Value::Integer(1.into()),
+                        name,
+                    ]
+                    .into()
+                ]
+                .into())
+            },
+        );
+
         me
     }
 }
