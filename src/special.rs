@@ -22,6 +22,7 @@ pub fn transform(
         "let*" => Some(r#let_star_(ctx, env, args)),
         "letrec" => Some(r#letrec(ctx, env, args)),
         "letrec*" => Some(r#letrec_star_(ctx, env, args)),
+        "begin" => Some(begin(ctx, env, args)),
         _ => None,
     }
 }
@@ -366,4 +367,9 @@ fn r#letrec_star_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Re
     }
 
     eval_block(&args, ctx, block_env)
+}
+
+#[inline]
+fn begin(ctx: Context, env: Environment, exprs: Vector<Value>) -> Result<Value, Error> {
+    eval_block(&exprs, ctx, env)
 }

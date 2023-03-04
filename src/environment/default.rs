@@ -319,20 +319,6 @@ impl Default for Environment {
 
         define_fn(
             &me,
-            "begin",
-            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
-            Option::<&str>::None,
-            |_ctx, mut values| {
-                if let Some(last) = values.pop_back() {
-                    Ok(last)
-                } else {
-                    Ok(Value::Unspecified)
-                }
-            },
-        );
-
-        define_fn(
-            &me,
             "nil?",
             Parameters::Exact(1),
             Option::<&str>::None,
