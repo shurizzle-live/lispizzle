@@ -23,4 +23,19 @@
 (println (++ x))
 (println x)
 
+(defn $while (cond body env)
+      (if (eval cond env)
+        (begin
+          (eval body env)
+          ($while cond body env))))
+
+(defmacro while (cond &body)
+  `($while ',cond '(begin ,@body) (current-environment)))
+
+(def x 0)
+(while (< x 10)
+       (println x)
+       (inc x))
+(println x)
+
 ;; vim:ft=scheme
