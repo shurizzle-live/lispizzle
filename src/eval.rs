@@ -150,7 +150,9 @@ where
     }
 
     value_fn(
-        unsafe { exprs.get(last).unwrap_unchecked() }.clone(),
+        unsafe { exprs.get(last).unwrap_unchecked() }
+            .clone()
+            .macroexpand(ctx.clone(), env.clone(), true)?,
         ctx,
         env,
         true,
