@@ -120,6 +120,35 @@ impl Default for Environment {
 
         define_fn(
             &me,
+            "not",
+            Parameters::Exact(1),
+            Option::<&str>::None,
+            |_ctx, mut values| Ok((!values.remove(0).to_bool()).into()),
+        );
+
+        define_fn(
+            &me,
+            "not=",
+            Parameters::Variadic(unsafe { NonZeroUsize::new_unchecked(1) }),
+            Option::<&str>::None,
+            |ctx, mut values| {
+                if let Some(first) = values.pop_front() {
+                    while let Some(other) = values.pop_front() {
+                        if core::mem::discriminant(&first) != core::mem::discriminant(&other) {
+                            return Err(ctx.trace().error("wrong-type-arg", None));
+                        }
+
+                        if first.eq(&other) {
+                            return Ok(false.into());
+                        }
+                    }
+                }
+                Ok(true.into())
+            },
+        );
+
+        define_fn(
+            &me,
             "nil?",
             Parameters::Exact(1),
             Option::<&str>::None,
