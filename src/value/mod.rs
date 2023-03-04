@@ -2,12 +2,12 @@ mod macroexpand;
 
 use std::fmt;
 
-use im_rc::{vector, Vector};
+use im_rc::Vector;
 use rug::Integer;
 
 use crate::{
-    proc::{Callable, UnboundProc},
-    special::transform,
+    eval,
+    proc::UnboundProc,
     util::{print_list_debug, print_list_display},
     BackTrace, Context, Environment, Error, Proc, Str, Symbol, TraceFrame, Var,
 };
@@ -122,73 +122,9 @@ impl Value {
         }
     }
 
-    pub fn apply(&self, ctx: Context, mut args: Vector<Value>) -> Result<Value, Error> {
-        match self {
-            Self::Fn(l) => {
-                if l.min_arity() > args.len() {
-                    Err(ctx.trace().error("wrong-number-of-args", None))
-                } else {
-                    l.call(ctx, args)
-                }
-            }
-            Self::Integer(l) => {
-                if args.len() != 1 {
-                    return Err(ctx.trace().error("wrong-number-of-args", None));
-                }
-                unsafe { args.pop_front().unwrap_unchecked() }.element_at(ctx, l)
-            }
-            _ => Err(ctx.trace().error("wrong-type-arg", None)),
-        }
-    }
-
+    #[inline]
     pub fn eval(self, ctx: Context, env: Environment, in_block: bool) -> Result<Value, Error> {
-        match self {
-            Self::UnboundFn(f) => Ok(Self::Fn(f.eval(env).into())),
-            Self::UnboundMacro(f) => Ok(Self::Macro(f.eval(env).into())),
-            Self::Unspecified
-            | Self::Nil
-            | Self::Boolean(_)
-            | Self::Character(_)
-            | Self::Integer(_)
-            | Self::String(_)
-            | Self::Fn(_)
-            | Self::Macro(_)
-            | Self::Var(_)
-            | Self::Environment(_)
-            | Self::Error(_)
-            | Self::BackTrace(_)
-            | Self::Frame(_) => Ok(self),
-            Self::Symbol(sym) => env.get(sym.clone()).map(|v| v.get()).ok_or_else(|| {
-                ctx.trace()
-                    .error("unbound-variable", Some(vector![Self::Symbol(sym)]))
-            }),
-            Self::List(mut l) => {
-                if let Some(first) = l.pop_front() {
-                    if let Self::Symbol(Symbol::Name(ref s)) = first {
-                        if let Some(res) =
-                            transform(ctx.clone(), env.clone(), s.clone(), l.clone(), in_block)
-                        {
-                            return res;
-                        }
-                    }
-
-                    let resolved = first.eval(ctx.clone(), env.clone(), false)?;
-
-                    if resolved.is_macro() {
-                        Err(ctx.trace().error("wrong-type-arg", None))
-                    } else {
-                        let args = l
-                            .into_iter()
-                            .map(|v| v.eval(ctx.clone(), env.clone(), false))
-                            .collect::<Result<Vector<_>, Error>>()?;
-
-                        resolved.apply(ctx, args)
-                    }
-                } else {
-                    Err(ctx.trace().error("syntax-error", None))
-                }
-            }
-        }
+        eval::value(self, ctx, env, in_block)
     }
 
     #[inline(always)]

@@ -135,7 +135,6 @@ impl Proc {
         }
     }
 
-    #[cfg(test)]
     #[inline]
     pub fn addr(&self) -> usize {
         self._addr()

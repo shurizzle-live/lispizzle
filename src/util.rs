@@ -1,9 +1,5 @@
 use std::fmt;
 
-use im_rc::Vector;
-
-use crate::{Context, Environment, Error, Value};
-
 pub fn print_list_debug<T>(
     f: &mut fmt::Formatter<'_>,
     iiter: impl IntoIterator<Item = T>,
@@ -48,23 +44,4 @@ where
     }
 
     fmt::Display::fmt(&rh, f)
-}
-
-pub fn eval_block(exprs: &Vector<Value>, ctx: Context, env: Environment) -> Result<Value, Error> {
-    if exprs.is_empty() {
-        return Err(ctx.trace().error("syntax-error", None));
-    }
-
-    fn eval_exp(exp: &Value, ctx: Context, env: Environment) -> Result<Value, Error> {
-        exp.clone()
-            .macroexpand(ctx.clone(), env.clone(), true)?
-            .eval(ctx, env, true)
-    }
-
-    let last = exprs.len() - 1;
-    for exp in exprs.iter().take(last) {
-        eval_exp(exp, ctx.clone(), env.clone())?;
-    }
-
-    eval_exp(unsafe { exprs.get(last).unwrap_unchecked() }, ctx, env)
 }

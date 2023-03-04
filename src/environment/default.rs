@@ -2,7 +2,7 @@ use std::ops::{AddAssign, Neg, SubAssign};
 
 use im_rc::{vector, Vector};
 
-use crate::{environment::proc, Context, Environment, Error, Str, Symbol, Value};
+use crate::{environment::proc, eval, Context, Environment, Error, Str, Symbol, Value};
 
 impl Default for Environment {
     fn default() -> Self {
@@ -281,21 +281,6 @@ impl Default for Environment {
             |ctx, mut values| {
                 if let Value::Macro(p) = unshift(&mut values) {
                     Ok(p.source())
-                } else {
-                    Err(ctx.trace().error("wrong-type-arg", None))
-                }
-            },
-        );
-
-        define_fn(
-            &me,
-            "apply",
-            Parameters::Exact(2),
-            Option::<&str>::None,
-            |ctx, mut values| {
-                let f = unshift(&mut values);
-                if let Value::List(args) = unshift(&mut values) {
-                    f.apply(ctx, args)
                 } else {
                     Err(ctx.trace().error("wrong-type-arg", None))
                 }
@@ -598,12 +583,12 @@ impl Default for Environment {
                     return Err(ctx.trace().error("wrong-type-arg", None));
                 }
 
-                let err = match f1.apply(ctx.clone(), vector![]) {
+                let err = match eval::apply(f1, ctx.clone(), vector![]) {
                     Ok(v) => return Ok(v),
                     Err(err) => err,
                 };
 
-                f2.apply(ctx, vector![err.into()])
+                eval::apply(f2, ctx, vector![err.into()])
             },
         );
 

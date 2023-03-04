@@ -2,7 +2,11 @@ use std::{fmt, rc::Rc};
 
 use im_rc::Vector;
 
-use crate::{proc::Parameters, util::eval_block, Environment, Str, Symbol, Value};
+use crate::{
+    eval::{self, LastValue},
+    proc::Parameters,
+    Environment, Str, Symbol, Value,
+};
 
 mod unbound {
     use std::{fmt, rc::Rc};
@@ -147,28 +151,35 @@ impl Callable for LispProc {
         ctx: crate::Context,
         mut parameters: Vector<Value>,
     ) -> Result<Value, crate::Error> {
-        let pars = match self.0.parameters {
-            Parameters::Exact(ref l) => l.clone(),
-            Parameters::Variadic(ref l) => l.clone(),
-        };
-        let fn_env = self.0.env.child(pars.into_iter());
+        loop {
+            let pars = match self.0.parameters {
+                Parameters::Exact(ref l) => l.clone(),
+                Parameters::Variadic(ref l) => l.clone(),
+            };
+            let fn_env = self.0.env.child(pars.into_iter());
 
-        match self.0.parameters {
-            Parameters::Exact(ref l) => {
-                for sym in l {
-                    _ = fn_env.set(sym, parameters.remove(0));
+            match self.0.parameters {
+                Parameters::Exact(ref l) => {
+                    for sym in l {
+                        _ = fn_env.set(sym, parameters.remove(0));
+                    }
+                }
+                Parameters::Variadic(ref l) => {
+                    let last = l.len() - 1;
+                    for sym in l.iter().take(last) {
+                        _ = fn_env.set(sym, parameters.remove(0));
+                    }
+                    _ = fn_env.set(unsafe { l.get(last).unwrap_unchecked() }, parameters.into());
                 }
             }
-            Parameters::Variadic(ref l) => {
-                let last = l.len() - 1;
-                for sym in l.iter().take(last) {
-                    _ = fn_env.set(sym, parameters.remove(0));
+
+            match eval::block_fn(&self.0.body, ctx.clone(), fn_env, eval::apply_recur)? {
+                LastValue::Recur(p) => {
+                    parameters = p;
                 }
-                _ = fn_env.set(unsafe { l.get(last).unwrap_unchecked() }, parameters.into());
+                LastValue::Value(v) => return Ok(v),
             }
         }
-
-        eval_block(&self.0.body, ctx, fn_env)
     }
 }
 

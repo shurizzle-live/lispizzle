@@ -2,6 +2,7 @@ mod backtrace;
 mod context;
 mod environment;
 mod error;
+pub(crate) mod eval;
 pub mod parser;
 pub mod proc;
 mod program;

@@ -1,12 +1,15 @@
 use im_rc::{vector, Vector};
 
-use crate::{environment::Bag, util::eval_block, Context, Environment, Error, Str, Symbol, Value};
+use crate::{environment::Bag, eval, Context, Environment, Error, Str, Symbol, Value};
 
 use std::mem;
 
 pub const NAMES: &[&str] = [
+    "apply",
     "quote",
     "quasiquote",
+    "unquote",
+    "unquote-splicing",
     "if",
     "def",
     "set!",
@@ -19,25 +22,33 @@ pub const NAMES: &[&str] = [
 ]
 .as_slice();
 
-pub fn transform(
+pub fn transform_fn<T, F>(
     ctx: Context,
     env: Environment,
     name: Str,
     args: Vector<Value>,
     in_block: bool,
-) -> Option<Result<Value, Error>> {
+    apply_fn: F,
+) -> Option<Result<T, Error>>
+where
+    T: From<Value>,
+    F: (Fn(Value, Context, Vector<Value>) -> Result<T, Error>) + Clone,
+{
     match name.as_str() {
-        "quote" => Some(quote(ctx, env, args, in_block)),
-        "quasiquote" => Some(quasiquote(ctx, env, args, in_block)),
-        "if" => Some(iff(ctx, env, args, in_block)),
-        "def" => Some(def(ctx, env, args, in_block)),
-        "set!" => Some(set_em_(ctx, env, args, in_block)),
-        "current-environment" => Some(current_environment(ctx, env, args, in_block)),
-        "let" => Some(r#let(ctx, env, args)),
-        "let*" => Some(r#let_star_(ctx, env, args)),
-        "letrec" => Some(r#letrec(ctx, env, args)),
-        "letrec*" => Some(r#letrec_star_(ctx, env, args)),
-        "begin" => Some(begin(ctx, env, args)),
+        "apply" => Some(apply(ctx, args, apply_fn)),
+        "quote" => Some(quote(ctx, env, args).map(Into::into)),
+        "quasiquote" => Some(quasiquote(ctx, env, args).map(Into::into)),
+        "if" => Some(iff(ctx, env, args, apply_fn)),
+        "def" => Some(def(ctx, env, args, in_block).map(Into::into)),
+        "set!" => Some(set_em_(ctx, env, args, in_block).map(Into::into)),
+        "current-environment" => {
+            Some(current_environment(ctx, env, args, in_block).map(Into::into))
+        }
+        "let" => Some(r#let(ctx, env, args, apply_fn)),
+        "let*" => Some(r#let_star_(ctx, env, args, apply_fn)),
+        "letrec" => Some(r#letrec(ctx, env, args, apply_fn)),
+        "letrec*" => Some(r#letrec_star_(ctx, env, args, apply_fn)),
+        "begin" => Some(begin(ctx, env, args, apply_fn)),
         _ => None,
     }
 }
@@ -47,17 +58,24 @@ fn unshift(args: &mut Vector<Value>) -> Value {
     unsafe { args.pop_front().unwrap_unchecked() }
 }
 
-#[inline(always)]
-fn grab(args: &mut Vector<Value>, n: usize) -> Value {
-    args.remove(n)
+fn apply<T, F>(ctx: Context, mut args: Vector<Value>, apply: F) -> Result<T, Error>
+where
+    T: From<Value>,
+    F: (FnOnce(Value, Context, Vector<Value>) -> Result<T, Error>) + Clone,
+{
+    if args.len() != 2 {
+        return Err(ctx.trace().error("syntax-error", None));
+    }
+
+    let f = args.remove(0);
+    if let Value::List(args) = args.remove(0) {
+        apply(f, ctx, args)
+    } else {
+        Err(ctx.trace().error("wrong-type-arg", None))
+    }
 }
 
-fn quote(
-    ctx: Context,
-    _env: Environment,
-    mut args: Vector<Value>,
-    _in_block: bool,
-) -> Result<Value, Error> {
+fn quote(ctx: Context, _env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() == 1 {
         Ok(unshift(&mut args))
     } else {
@@ -65,12 +83,7 @@ fn quote(
     }
 }
 
-fn quasiquote(
-    ctx: Context,
-    env: Environment,
-    mut args: Vector<Value>,
-    _in_block: bool,
-) -> Result<Value, Error> {
+fn quasiquote(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
     if args.len() != 1 {
         return Err(ctx.trace().error("syntax-error", None));
     }
@@ -85,13 +98,13 @@ fn quasiquote(
             if let Some(Value::Symbol(Symbol::Name(name))) = list.get(0) {
                 if name == "unquote" {
                     return if list.len() == 2 {
-                        grab(&mut list, 1).eval(ctx, env, false).map(Res::Value)
+                        list.remove(1).eval(ctx, env, false).map(Res::Value)
                     } else {
                         Err(ctx.trace().error("syntax-error", None))
                     };
                 } else if name == "unquote-splicing" {
                     return if list.len() == 2 {
-                        grab(&mut list, 1).eval(ctx, env, false).map(|x| {
+                        list.remove(1).eval(ctx, env, false).map(|x| {
                             if let Value::List(l) = x {
                                 Res::Splice(l)
                             } else {
@@ -135,29 +148,25 @@ fn quasiquote(
     }
 }
 
-fn iff(
-    ctx: Context,
-    env: Environment,
-    mut args: Vector<Value>,
-    _in_block: bool,
-) -> Result<Value, Error> {
+fn iff<T, F>(ctx: Context, env: Environment, mut args: Vector<Value>, apply: F) -> Result<T, Error>
+where
+    T: From<Value>,
+    F: (Fn(Value, Context, Vector<Value>) -> Result<T, Error>) + Clone,
+{
     if args.len() == 2 {
-        if unshift(&mut args)
-            .eval(ctx.clone(), env.clone(), false)?
-            .to_bool()
-        {
-            unshift(&mut args).eval(ctx, env, false)
+        if eval::value(args.remove(0), ctx.clone(), env.clone(), false)?.to_bool() {
+            eval::value_fn(args.remove(0), ctx, env, false, apply)
         } else {
-            Ok(Value::Unspecified)
+            Ok(Value::Unspecified.into())
         }
     } else if args.len() == 3 {
         if unshift(&mut args)
             .eval(ctx.clone(), env.clone(), false)?
             .to_bool()
         {
-            grab(&mut args, 0).eval(ctx, env, false)
+            eval::value_fn(args.remove(0), ctx, env, false, apply)
         } else {
-            grab(&mut args, 1).eval(ctx, env, false)
+            eval::value_fn(args.remove(1), ctx, env, false, apply)
         }
     } else {
         Err(ctx.trace().error("syntax-error", None))
@@ -241,7 +250,16 @@ fn def(
     Ok(Value::Unspecified)
 }
 
-fn r#let(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn r#let<T, F>(
+    ctx: Context,
+    env: Environment,
+    mut args: Vector<Value>,
+    apply: F,
+) -> Result<T, Error>
+where
+    T: From<Value>,
+    F: (Fn(Value, Context, Vector<Value>) -> Result<T, Error>) + Clone,
+{
     if args.len() < 2 {
         return Err(ctx.trace().error("syntax-error", None));
     }
@@ -272,10 +290,19 @@ fn r#let(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Valu
         block_env.define(name, value);
     }
 
-    eval_block(&args, ctx, block_env)
+    eval::block_fn(&args, ctx, block_env, apply)
 }
 
-fn r#let_star_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn r#let_star_<T, F>(
+    ctx: Context,
+    env: Environment,
+    mut args: Vector<Value>,
+    apply: F,
+) -> Result<T, Error>
+where
+    T: From<Value>,
+    F: (Fn(Value, Context, Vector<Value>) -> Result<T, Error>) + Clone,
+{
     if args.len() < 2 {
         return Err(ctx.trace().error("syntax-error", None));
     }
@@ -306,10 +333,19 @@ fn r#let_star_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Resul
         block_env.define(name, value);
     }
 
-    eval_block(&args, ctx, block_env)
+    eval::block_fn(&args, ctx, block_env, apply)
 }
 
-fn r#letrec(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn r#letrec<T, F>(
+    ctx: Context,
+    env: Environment,
+    mut args: Vector<Value>,
+    apply: F,
+) -> Result<T, Error>
+where
+    T: From<Value>,
+    F: (Fn(Value, Context, Vector<Value>) -> Result<T, Error>) + Clone,
+{
     if args.len() < 2 {
         return Err(ctx.trace().error("syntax-error", None));
     }
@@ -345,10 +381,19 @@ fn r#letrec(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<V
     }
     unsafe { block_env.set_bag(total) };
 
-    eval_block(&args, ctx, block_env)
+    eval::block_fn(&args, ctx, block_env, apply)
 }
 
-fn r#letrec_star_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Result<Value, Error> {
+fn r#letrec_star_<T, F>(
+    ctx: Context,
+    env: Environment,
+    mut args: Vector<Value>,
+    apply: F,
+) -> Result<T, Error>
+where
+    T: From<Value>,
+    F: (Fn(Value, Context, Vector<Value>) -> Result<T, Error>) + Clone,
+{
     if args.len() < 2 {
         return Err(ctx.trace().error("syntax-error", None));
     }
@@ -381,10 +426,14 @@ fn r#letrec_star_(ctx: Context, env: Environment, mut args: Vector<Value>) -> Re
         _ = block_env.set(name, value);
     }
 
-    eval_block(&args, ctx, block_env)
+    eval::block_fn(&args, ctx, block_env, apply)
 }
 
 #[inline]
-fn begin(ctx: Context, env: Environment, exprs: Vector<Value>) -> Result<Value, Error> {
-    eval_block(&exprs, ctx, env)
+fn begin<T, F>(ctx: Context, env: Environment, exprs: Vector<Value>, apply: F) -> Result<T, Error>
+where
+    T: From<Value>,
+    F: (Fn(Value, Context, Vector<Value>) -> Result<T, Error>) + Clone,
+{
+    eval::block_fn(&exprs, ctx, env, apply)
 }

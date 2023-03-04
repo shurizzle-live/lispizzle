@@ -188,7 +188,7 @@ mod tests {
     use im_rc::vector;
     use rug::Integer;
 
-    use crate::{Context, Environment, Symbol, Value};
+    use crate::{eval, Context, Environment, Symbol, Value};
 
     #[test]
     fn plus() {
@@ -196,53 +196,51 @@ mod tests {
         let env = Environment::default();
 
         assert_eq!(
-            env.get(Symbol::Name("+".into()))
-                .unwrap()
-                .get()
-                .apply(ctx.clone(), vector![])
-                .unwrap(),
+            eval::apply(
+                env.get(Symbol::Name("+".into())).unwrap().get(),
+                ctx.clone(),
+                vector![]
+            )
+            .unwrap(),
             Integer::from(0).into()
         );
 
         assert_eq!(
-            env.get(Symbol::Name("+".into()))
-                .unwrap()
-                .get()
-                .apply(ctx.clone(), vector![Integer::from(69).into()])
-                .unwrap(),
+            eval::apply(
+                env.get(Symbol::Name("+".into())).unwrap().get(),
+                ctx.clone(),
+                vector![Integer::from(69).into()]
+            )
+            .unwrap(),
             Integer::from(69).into()
         );
 
         assert_eq!(
-            env.get(Symbol::Name("+".into()))
-                .unwrap()
-                .get()
-                .apply(ctx.clone(), vector![Value::String("ciao".into())])
-                .unwrap(),
+            eval::apply(
+                env.get(Symbol::Name("+".into())).unwrap().get(),
+                ctx.clone(),
+                vector![Value::String("ciao".into())]
+            )
+            .unwrap(),
             Value::String("ciao".into())
         );
 
         assert_eq!(
-            env.get(Symbol::Name("+".into()))
-                .unwrap()
-                .get()
-                .apply(
-                    ctx.clone(),
-                    vector![Integer::from(34).into(), Integer::from(35).into()]
-                )
-                .unwrap(),
+            eval::apply(
+                env.get(Symbol::Name("+".into())).unwrap().get(),
+                ctx.clone(),
+                vector![Integer::from(34).into(), Integer::from(35).into()]
+            )
+            .unwrap(),
             Integer::from(69).into()
         );
 
-        assert!(env
-            .get(Symbol::Name("+".into()))
-            .unwrap()
-            .get()
-            .apply(
-                ctx,
-                vector![Integer::from(69).into(), Value::String("ciao".into())]
-            )
-            .is_err());
+        assert!(eval::apply(
+            env.get(Symbol::Name("+".into())).unwrap().get(),
+            ctx,
+            vector![Integer::from(69).into(), Value::String("ciao".into())]
+        )
+        .is_err());
     }
 
     #[test]
@@ -252,11 +250,12 @@ mod tests {
 
         let l = vector![1.into(), 2.into(), 3.into()];
         assert_eq!(
-            env.get(Symbol::Name("list".into()))
-                .unwrap()
-                .get()
-                .apply(ctx, l.clone())
-                .unwrap(),
+            eval::apply(
+                env.get(Symbol::Name("list".into())).unwrap().get(),
+                ctx,
+                l.clone(),
+            )
+            .unwrap(),
             l.into()
         );
     }
