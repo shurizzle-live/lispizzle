@@ -1,8 +1,8 @@
 mod input;
 mod str_reader;
-#[cfg(feature = "benchmarking")]
+#[cfg(bench)]
 pub mod util;
-#[cfg(not(feature = "benchmarking"))]
+#[cfg(not(bench))]
 pub(crate) mod util;
 
 use ecow::EcoVec;

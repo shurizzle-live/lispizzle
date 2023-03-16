@@ -1,8 +1,8 @@
 mod error;
 mod location;
-#[cfg(feature = "benchmarking")]
+#[cfg(bench)]
 pub mod reader;
-#[cfg(not(feature = "benchmarking"))]
+#[cfg(not(bench))]
 pub(crate) mod reader;
 mod span;
 

@@ -6,13 +6,16 @@ edition = "2021"
 [[bench]]
 name = "skip_characters"
 harness = false
-required-features = ["benchmarking"]
 
-[features]
-benchmarking = []
+[lib]
+bench = false
 
 [dev-dependencies]
-cargo-husky = { version = "1.5.0", default-features = false, features = ["user-hooks"] }
+cargo-husky = { version = "1.5.0", default-features = false, features = [
+  "user-hooks",
+] }
+
+[target.'cfg(bench)'.dev-dependencies]
 criterion = "0.4.0"
 
 [dependencies]

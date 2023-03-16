@@ -1,3 +1,6 @@
+#[cfg(not(bench))]
+compile_error!("benchmarks must be run as `RUSTFLAGS=\"--cfg bench\" cargo bench --all-features`");
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 extern crate lispizzle;
